@@ -1,0 +1,49 @@
+""" UKB ICA dataset loading script (1196 subject holdout data) """
+
+import numpy as np
+import pandas as pd
+
+def load_data_hold(
+    file_path: str = "/Users/ppopov1/datasets/ukb_ica/ukb_data_hold.npz",
+    demo_path: str = "/Users/ppopov1/datasets/ukb_ica/demographics_legend_hold.csv"
+    ):
+    """
+    Loads UKB ICA data (holdout) saved in npz archive.
+
+    Args:
+        file_path (str): The path to the .npz file.
+        demo_path (str): The path to the demographics legend CSV file.
+
+    Returns:
+        A dictionary containing the loaded arrays:
+            - data: The main data array of shape (1196, 490, 53) (samples, time points, features).
+            - sexes: Sex labels.    
+            - ages: Age values.
+            - age_bins: Age bin labels.
+        A pandas DataFrame containing the demographics legend.
+    """
+    npz = np.load(file_path, allow_pickle=True)
+    data = npz["data"]
+    sexes = npz["sexes"]
+    ages = npz["ages"]
+    age_bins = npz["age_bins"]
+
+    demo_df = pd.read_csv(demo_path)
+
+    return {
+        "data": data,
+        "sexes": sexes,
+        "ages": ages,
+        "age_bins": age_bins
+    }, demo_df
+
+if __name__ == "__main__":
+    # Example of how to use the function to load the data
+    data_dict, demo_df = load_data_hold()
+
+    # Print the keys of the loaded data to verify
+    print("Arrays loaded from the file:", data_dict.keys())
+    print("Data shape:", data_dict["data"].shape)
+    print("Others shape:", data_dict["sexes"].shape, data_dict["ages"].shape, data_dict["age_bins"].shape)
+    print("Demographics legend DataFrame:")
+    print(demo_df)
