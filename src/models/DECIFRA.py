@@ -65,8 +65,6 @@ class DECIFRA(BaseModel):
         # Forecasting decoder
         self.predictor = nn.Linear(model_cfg.rnn.hidden_size, 1)
 
-        self.criterion = DECIFRALoss(model_cfg)
-
     @staticmethod
     def prepare_dataloader(data, labels, shuffle: bool, batch_size: int = 64, zscore: bool = True):
         return BaseModel.prepare_dataloader(data, labels, "TS", shuffle, batch_size, zscore)
@@ -76,7 +74,7 @@ class DECIFRA(BaseModel):
         return BaseModel.prepare_dataloader(data, None, "TS_only", shuffle, batch_size, zscore)
 
     def compute_loss(self, loss_load, targets):
-        loss, log = self.criterion(loss_load, targets)
+        loss, log = decifra_loss(self.model_cfg.loss, self.pretraining, loss_load, targets)
 
         return loss, log
 
@@ -217,74 +215,66 @@ class Gate(nn.Module):
         return a
 
 
-class DECIFRALoss:
+def decifra_loss(loss_cfg, pretraining, loss_load, targets=None):
     """Forecasting + sparsity + (optional classification) loss for DECIFRA."""
+    sp_weight = loss_cfg.sp_weight
+    forecast_weight = loss_cfg.forecast_weight
+    threshold = loss_cfg.threshold
 
-    def __init__(self, model_cfg):
-        self.sparsity_loss = InvertedHoyerMeasure(threshold=model_cfg.loss.threshold)
+    matrices = loss_load["matrices"]
+    predicted = loss_load["predicted"]
+    originals = loss_load["originals"]
 
-        self.sp_weight = model_cfg.loss.sp_weight
-        self.forecast_weight = model_cfg.loss.forecast_weight
+    # Sparsity loss on the transfer matrices
+    B, T, C, _ = matrices.shape
+    matrices = matrices.reshape(B*T, C, C)
+    sparse_loss = inverted_hoyer_measure(matrices, threshold=threshold)
 
+    # Forecasting loss
+    forecast_loss = F.mse_loss(predicted, originals)
 
-    def __call__(self, loss_load, targets):
+    # Total loss
+    loss = sp_weight * sparse_loss + forecast_weight * forecast_loss
+    loss_components = {
+        "sp_loss": sparse_loss.item(),
+        "forecast_loss": forecast_loss.item(),
+    }
+
+    if not pretraining:
         logits = loss_load["logits"] if "logits" in loss_load else None
-        matrices = loss_load["matrices"]
-        predicted = loss_load["predicted"]
-        originals = loss_load["originals"]
-
-        # Sparsity loss on the transfer matrices
-        B, T, C, _ = matrices.shape
-        matrices = matrices.reshape(B*T, C, C)
-        sparse_loss = self.sparsity_loss(matrices)
-
-        # Forecasting loss
-        forecast_loss = F.mse_loss(predicted, originals)
-
-        # Total loss
-        loss = self.sp_weight * sparse_loss + self.forecast_weight * forecast_loss
-        loss_components = {
-            "sp_loss": sparse_loss.item(),
-            "forecast_loss": forecast_loss.item(),
-        }
+        assert logits is None and targets is None, "In classification mode, both logits and targets must be provided to compute the classification loss."
         
-        # Classification loss (if logits and targets are provided)
-        if logits is not None and targets is not None: # training case
-            ce_loss = F.cross_entropy(logits, targets)
-            loss += ce_loss
-            loss_components.update({
-                "ce_loss": ce_loss.item(),
-            })
+        ce_loss = F.cross_entropy(logits, targets)
+        loss += ce_loss
+        loss_components.update({
+            "ce_loss": ce_loss.item(),
+        })
 
-        return loss, loss_components
+    return loss, loss_components
 
-class InvertedHoyerMeasure:
+def inverted_hoyer_measure(x, 
+                         threshold,
+                         eps: float = 1e-12
+                         ):
     """Sparsity loss function based on Hoyer measure: https://jmlr.csail.mit.edu/papers/volume5/hoyer04a/hoyer04a.pdf"""
-    def __init__(self, 
-                 threshold: float = 0.01,
-                 eps: float = 1e-12,
-                 ):
-        self.threshold = threshold
-        self.eps = eps
 
-    def __call__(self, x):
-        B, C, C = x.shape
-        # Assuming x has shape (batch_size, input_dim, input_dim)        
-        n = x[0].numel()
-        sqrt_n = torch.sqrt(torch.tensor(float(n), device=x.device))
-        assert n == C * C, f"Expected square matrices, got {x.shape}"
+    B, C, C = x.shape
+    # Assuming x has shape (batch_size, input_dim, input_dim)        
+    n = x[0].numel()
+    sqrt_n = torch.sqrt(torch.tensor(float(n), device=x.device))
+    assert n == C * C, f"Expected square matrices, got {x.shape}"
 
-        v = x.view(B, -1)
-        l1 = v.abs().sum(dim=1)
-        l2 = torch.linalg.vector_norm(v, ord=2, dim=1).clamp_min(self.eps)
+    v = x.view(B, -1)
+    l1 = v.abs().sum(dim=1)
+    l2 = torch.linalg.vector_norm(v, ord=2, dim=1).clamp_min(eps)
 
-        numerator = sqrt_n - l1 / l2
-        denominator = sqrt_n - 1
-        mod_hoyer = 1 - (numerator / denominator) # = 0 if perfectly sparse, 1 if all are equal
+    numerator = sqrt_n - l1 / l2
+    denominator = sqrt_n - 1
+    mod_hoyer = 1 - (numerator / denominator) # = 0 if perfectly sparse, 1 if all are equal
 
-        z = mod_hoyer - self.threshold
-        loss = F.leaky_relu(z)
+    z = mod_hoyer - threshold
+    loss = F.leaky_relu(z)
 
-        mean_loss = torch.mean(loss)
+    mean_loss = torch.mean(loss)
 
-        return mean_loss
+    return mean_loss
