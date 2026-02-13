@@ -31,7 +31,7 @@ def default_HPs(cfg: DictConfig):
             "prediction_depth": 1, # how deep the forcaster forecasts: 1 predicts only next signal, 2 reiterates on the previous prediction...
             "weighted_change": False, # if True, the loss will penalize forecasting errors on high-amplitude changes more
         },
-        "lr": 1e-3,
+        "lr": 1e-4,
         "load_pretrained": False,
         "pretrained_path": None,
         "pretraining": True, 
@@ -41,9 +41,9 @@ def default_HPs(cfg: DictConfig):
     return OmegaConf.create(model_cfg)
 
 
-class DECIFRA(BaseModel):
+class NewModel(BaseModel):
     def __init__(self, model_cfg: DictConfig):
-        super(DECIFRA, self).__init__()
+        super(NewModel, self).__init__()
 
         self.model_cfg = model_cfg
 
@@ -78,6 +78,20 @@ class DECIFRA(BaseModel):
                 nn.Linear(model_cfg.input_size**2 // 4, model_cfg.output_size),
             )
 
+    def get_optimizer(self, lr: float | None = None):
+        if lr is None:
+            lr = self.lr
+        
+        opt_name = self.model_cfg.get("optimizer", "Adam")
+        if opt_name == "Adam":
+            optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+        elif opt_name == "AdamW":
+            optimizer = torch.optim.AdamW(self.parameters(), lr=lr)
+        else:
+            raise ValueError(f"Unknown optimizer {opt_name}")
+        
+        return optimizer
+    
     @staticmethod
     def prepare_dataloader(data, labels, shuffle: bool, batch_size: int = 64, zscore: bool = True):
         return BaseModel.prepare_dataloader(data, labels, "TS", shuffle, batch_size, zscore)

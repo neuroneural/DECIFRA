@@ -15,7 +15,7 @@ from sklearn.metrics import (
 
 
 
-from ..utils import zscore_np, corrcoef_batch
+from src.utils import zscore_np, corrcoef_batch
 
 class BaseModel(nn.Module, ABC):
     """
