@@ -144,3 +144,6 @@ examples/roi_experiments
 examples/plots_data
 _error
 _out
+
+jupyter_node*
+jnode-*

@@ -16,10 +16,10 @@ def default_HPs(cfg: DictConfig):
         "single_GRU": True, # TODO: implement if True, use the same GRU for all input channels; if False, one GRU per channel
         "rnn": {
             "input_embedding_size": 16,
-            "hidden_size": 32,
+            "hidden_size": 16,
         },
         "btp": {
-            "hidden_dim": 32,
+            "hidden_dim": 16,
         },
         "single_predictor": True, # TODO: implement if True, use one predictor for all input channels; if False, one predictor per channel
         
@@ -31,7 +31,7 @@ def default_HPs(cfg: DictConfig):
             "prediction_depth": 1, # how deep the forcaster forecasts: 1 predicts only next signal, 2 reiterates on the previous prediction...
             "weighted_change": False, # if True, the loss will penalize forecasting errors on high-amplitude changes more
         },
-        "lr": 1e-3,
+        "lr": 1e-4,
         "load_pretrained": False,
         "pretrained_path": None,
         "pretraining": True, 
@@ -41,9 +41,9 @@ def default_HPs(cfg: DictConfig):
     return OmegaConf.create(model_cfg)
 
 
-class DECIFRA(BaseModel):
+class NewModel(BaseModel):
     def __init__(self, model_cfg: DictConfig):
-        super(DECIFRA, self).__init__()
+        super(NewModel, self).__init__()
 
         self.model_cfg = model_cfg
 
@@ -78,6 +78,20 @@ class DECIFRA(BaseModel):
                 nn.Linear(model_cfg.input_size**2 // 4, model_cfg.output_size),
             )
 
+    def get_optimizer(self, lr: float | None = None):
+        if lr is None:
+            lr = self.lr
+        
+        opt_name = self.model_cfg.get("optimizer", "Adam")
+        if opt_name == "Adam":
+            optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+        elif opt_name == "AdamW":
+            optimizer = torch.optim.AdamW(self.parameters(), lr=lr)
+        else:
+            raise ValueError(f"Unknown optimizer {opt_name}")
+        
+        return optimizer
+    
     @staticmethod
     def prepare_dataloader(data, labels, shuffle: bool, batch_size: int = 64, zscore: bool = True):
         return BaseModel.prepare_dataloader(data, labels, "TS", shuffle, batch_size, zscore)
@@ -316,183 +330,3 @@ def inverted_hoyer_measure(x,
     mean_loss = torch.mean(loss)
 
     return mean_loss
-
-##### Variations of the model
-## no gate
-
-# DECIFRA with no gate
-class BTP_noGate(BTP):
-    def __init__(self, input_dim, hidden_dim, n_components):
-        super(BTP_noGate, self).__init__(input_dim, hidden_dim, n_components)
-
-    def forward(self, x): # x.shape (batch_size, n_components, GRU hidden size)
-        n_components = x.size(1)
-
-        queries = self.query(x)
-        keys = self.key(x)
-
-        transfer = torch.bmm(queries, keys.transpose(1, 2))
-        norms = torch.linalg.matrix_norm(transfer, keepdim=True)
-        transfer = transfer / norms
-
-        # gate = self.gate(transfer)
-        # transfer = transfer * gate
-
-        next_states = torch.bmm(transfer, x)
-
-        return next_states, transfer
-    
-class DECIFRA_noGate(DECIFRA):
-    def __init__(self, model_cfg: DictConfig):
-        super(DECIFRA_noGate, self).__init__(model_cfg)
-
-        # overwrite the BTP with the no-gate version
-        self.BTP = BTP_noGate(
-            input_dim=model_cfg.rnn.hidden_size, 
-            hidden_dim=model_cfg.btp.hidden_dim,
-            n_components=model_cfg.input_size
-        )
-
-# DECIFRA with no gate and identity mixing + learned residual connections
-
-class BTP_noGate_IMix_Res(BTP):
-    def __init__(self, input_dim, hidden_dim, n_components):
-        super(BTP_noGate_IMix_Res, self).__init__(input_dim, hidden_dim, n_components)
-        self.res_weight = nn.Parameter(torch.randn(1))
-
-    def forward(self, x): # x.shape (batch_size, n_components, GRU hidden size)
-        n_components = x.size(1)
-
-        queries = self.query(x)
-        keys = self.key(x)
-
-        transfer = torch.bmm(queries, keys.transpose(1, 2))
-        norms = torch.linalg.matrix_norm(transfer, keepdim=True)
-        transfer = transfer / norms
-
-        # gate = self.gate(transfer)
-        # transfer = transfer * gate
-
-        identity = torch.eye(n_components, device=x.device).unsqueeze(0).expand(x.size(0), -1, -1) # shape (batch_size, input_dim, input_dim)
-        full_transfer = transfer + identity
-        next_states = torch.bmm(full_transfer, x)
-
-        return next_states, transfer
-
-class DECIFRA_noGate_IMix_Res(DECIFRA):
-    def __init__(self, model_cfg: DictConfig):
-        super(DECIFRA_noGate_IMix_Res, self).__init__(model_cfg)
-
-        # overwrite the BTP with the no-gate version and identity mixing + residuals
-        self.BTP = BTP_noGate_IMix_Res(
-            input_dim=model_cfg.rnn.hidden_size, 
-            hidden_dim=model_cfg.btp.hidden_dim,
-            n_components=model_cfg.input_size
-        )
-
-## with gate
-
-# DECIFRA with no mixing of hidden states (identity transfer matrix)
-class BTP_IMix(BTP):
-    def __init__(self, input_dim, hidden_dim, n_components):
-        super(BTP_IMix, self).__init__(input_dim, hidden_dim, n_components)
-
-    def forward(self, x): # x.shape (batch_size, n_components, GRU hidden size)
-        n_components = x.size(1)
-
-        queries = self.query(x)
-        keys = self.key(x)
-
-        transfer = torch.bmm(queries, keys.transpose(1, 2))
-        norms = torch.linalg.matrix_norm(transfer, keepdim=True)
-        transfer = transfer / norms
-
-        gate = self.gate(transfer)
-        transfer = transfer * gate
-
-        next_states = x
-
-        return next_states, transfer
-    
-class DECIFRA_IMix(DECIFRA):
-    def __init__(self, model_cfg: DictConfig):
-        super(DECIFRA_IMix, self).__init__(model_cfg)
-
-        # overwrite the BTP with the no-gate version and identity mixing
-        self.BTP = BTP_IMix(
-            input_dim=model_cfg.rnn.hidden_size, 
-            hidden_dim=model_cfg.btp.hidden_dim,
-            n_components=model_cfg.input_size
-        )
-
-# DECIFRA with identity mixing + learned residual connections
-class BTP_IMix_Res(BTP):
-    def __init__(self, input_dim, hidden_dim, n_components):
-        super(BTP_IMix_Res, self).__init__(input_dim, hidden_dim, n_components)
-        self.res_weight = nn.Parameter(torch.randn(1))
-
-    def forward(self, x): # x.shape (batch_size, n_components, GRU hidden size)
-        n_components = x.size(1)
-
-        queries = self.query(x)
-        keys = self.key(x)
-
-        transfer = torch.bmm(queries, keys.transpose(1, 2))
-        norms = torch.linalg.matrix_norm(transfer, keepdim=True)
-        transfer = transfer / norms
-
-        gate = self.gate(transfer)
-        transfer = transfer * gate
-
-        identity = torch.eye(n_components, device=x.device).unsqueeze(0).expand(x.size(0), -1, -1) # shape (batch_size, input_dim, input_dim)
-        full_transfer = transfer + identity
-        next_states = torch.bmm(full_transfer, x)
-
-        return next_states, transfer
-
-class DECIFRA_IMix_Res(DECIFRA):
-    def __init__(self, model_cfg: DictConfig):
-        super(DECIFRA_IMix_Res, self).__init__(model_cfg)
-
-        # overwrite the BTP with the version with identity mixing and residuals
-        self.BTP = BTP_IMix_Res(
-            input_dim=model_cfg.rnn.hidden_size, 
-            hidden_dim=model_cfg.btp.hidden_dim,
-            n_components=model_cfg.input_size
-        )
-
-# DECIFRA with identity mixing + learned residual connections
-class BTP_Gated_IMix_Res(BTP):
-    def __init__(self, input_dim, hidden_dim, n_components):
-        super(BTP_Gated_IMix_Res, self).__init__(input_dim, hidden_dim, n_components)
-        self.res_weight = nn.Parameter(torch.randn(1))
-
-    def forward(self, x): # x.shape (batch_size, n_components, GRU hidden size)
-        n_components = x.size(1)
-
-        queries = self.query(x)
-        keys = self.key(x)
-
-        transfer = torch.bmm(queries, keys.transpose(1, 2))
-        norms = torch.linalg.matrix_norm(transfer, keepdim=True)
-        transfer = transfer / norms
-
-
-        identity = torch.eye(n_components, device=x.device).unsqueeze(0).expand(x.size(0), -1, -1) # shape (batch_size, input_dim, input_dim)
-        full_transfer = transfer + identity
-        gate = self.gate(full_transfer)
-        full_transfer = full_transfer * gate
-        next_states = torch.bmm(full_transfer, x)
-
-        return next_states, full_transfer
-
-class DECIFRA_Gated_IMix_Res(DECIFRA):
-    def __init__(self, model_cfg: DictConfig):
-        super(DECIFRA_Gated_IMix_Res, self).__init__(model_cfg)
-
-        # overwrite the BTP with the version with identity mixing and residuals
-        self.BTP = BTP_Gated_IMix_Res(
-            input_dim=model_cfg.rnn.hidden_size, 
-            hidden_dim=model_cfg.btp.hidden_dim,
-            n_components=model_cfg.input_size
-        )
