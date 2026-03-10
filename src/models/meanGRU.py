@@ -35,6 +35,13 @@ def default_HPs(cfg: DictConfig):
     return OmegaConf.create(model_cfg)
 
 
+def custom_HPs(cfg: DictConfig, model_cfg_path: str):
+    """Load custom hyperparams and inject dynamic feature_size."""
+    model_cfg = OmegaConf.load(model_cfg_path)
+    model_cfg.input_size = cfg.data_info.feature_size
+    return model_cfg
+
+
 class meanGRU(BaseModel):
     def __init__(self, model_cfg: DictConfig):
         super(meanGRU, self).__init__()
