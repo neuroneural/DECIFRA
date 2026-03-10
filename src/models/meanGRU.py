@@ -140,10 +140,10 @@ class meanGRU(BaseModel):
         
         if hidden_states.dim() == 3:
             pred_list = [self.predictor[i](hidden_states[:, i, :]) for i in range(C)]
-            return torch.stack(pred_list, dim=1).squeeze(-1)
+            return torch.stack(pred_list, dim=1).squeeze(-1).contiguous()
             
         pred_list = [self.predictor[i](hidden_states[:, :, i, :]) for i in range(C)]
-        return torch.stack(pred_list, dim=2).squeeze(-1)
+        return torch.stack(pred_list, dim=2).squeeze(-1).contiguous()
 
     def forward(self, x): 
         B, C = x.size(0), self.model_cfg.input_size
@@ -179,7 +179,7 @@ class meanGRU(BaseModel):
             
             all_preds.append(padded_pred)
 
-        return None, {"predicted": torch.stack(all_preds, dim=-1), "originals": x}
+        return None, {"predicted": torch.stack(all_preds, dim=-1).contiguous(), "originals": x.contiguous()}
 
     def compute_loss(self, loss_load, targets):
         delay = self.model_cfg.loss.prediction_delay
@@ -193,9 +193,9 @@ class meanGRU(BaseModel):
             total_shift = delay + d
             if 1 + total_shift >= T: break
                 
-            target_signal = originals[:, 1 + total_shift:, :]
+            target_signal = originals[:, 1 + total_shift:, :].contiguous()
             end_idx = (T - 1) - total_shift
-            pred_d = predicted[:, delay:delay+end_idx, :, d] 
+            pred_d = predicted[:, delay:delay+end_idx, :, d].contiguous()
             
             total_loss += mse_loss(pred_d, target_signal)
 
