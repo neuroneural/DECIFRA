@@ -24,10 +24,10 @@ class LSTM(BaseModel):
             self,
             model_cfg,
             hidden_size: int = 210,
-            num_layers: int = 1,
+            num_layers: int = 2,
             bidirectional: bool = False,
             dropout: float = 0.5,
-            lr: float = 4e-4,
+            lr: float = 5e-4,
     ):
         super().__init__()
 

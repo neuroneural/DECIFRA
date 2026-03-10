@@ -50,7 +50,7 @@ class BasicPreTrainer:
             utc_string = time.strftime("%m%d-%H%M%S", time.gmtime())
             save_path = f"1_pretrain_{self.model.__class__.__name__}_{utc_string}"
             save_path = os.path.join(LOGS_ROOT, save_path)
-        self.save_path = save_path
+        self.SAVE_PATH = save_path
 
 
     def _epoch(self, loader, train: bool):
@@ -81,18 +81,31 @@ class BasicPreTrainer:
             return agg_log
 
     def run(self):
+        # if save path already exists and not empty, back up the contents in a timestamped folder
+        if os.path.exists(self.SAVE_PATH) and os.listdir(self.SAVE_PATH):
+            utc_string = time.strftime("%m%d-%H%M%S", time.gmtime())
+            backup_path = f"{self.SAVE_PATH}_{utc_string}"
+            print(f"Save path {self.SAVE_PATH} already exists and is not empty. Backing up contents to {backup_path}")
+            os.makedirs(backup_path, exist_ok=True)
+            for filename in os.listdir(self.SAVE_PATH):
+                os.rename(
+                    os.path.join(self.SAVE_PATH, filename),
+                    os.path.join(backup_path, filename)
+                )
+                
         # set save path, save config
-        checkpoints_path = os.path.join(self.save_path, "checkpoints")
-        os.makedirs(self.save_path, exist_ok=True)
+        checkpoints_path = os.path.join(self.SAVE_PATH, "checkpoints")
+        os.makedirs(self.SAVE_PATH, exist_ok=True)
         os.makedirs(checkpoints_path, exist_ok=True)
-        with open(os.path.join(self.save_path, "model_config.yaml"), "w") as f:
+        with open(os.path.join(self.SAVE_PATH, "model_config.yaml"), "w") as f:
             OmegaConf.save(config=self.model_cfg, f=f.name)
-        with open(os.path.join(self.save_path, "config.yaml"), "w") as f:
+        with open(os.path.join(self.SAVE_PATH, "config.yaml"), "w") as f:
             OmegaConf.save(config=self.cfg, f=f.name)
 
         ### Training loop
         train_logs = []
         start = time.time()
+        log_path = None # used as a flag too
         torch.save(self.model.state_dict(), os.path.join(checkpoints_path, "model_init.pt"))
         for epoch in range(self.epochs):
             print(f"Epoch {epoch+1}/{self.epochs} | Elapsed time: {time.time()-start:.0f}s")
@@ -107,17 +120,20 @@ class BasicPreTrainer:
             epoch_log.update({f"val_{k}": v for k, v in val_log.items()})
             train_logs.append(epoch_log)
 
-            print(epoch_log)
+            # save epoch log to csv
+            df = pd.DataFrame([epoch_log])
+            if log_path is None:
+                log_path = os.path.join(self.SAVE_PATH, "train_logs.csv")
+                df.to_csv(log_path, mode='a', index=False, header=True)
+            else:
+                df.to_csv(log_path, mode='a', index=False, header=False)
+
 
         # find best epoch
         train_logs = pd.DataFrame(train_logs)
         best_epoch = train_logs['val_loss'].idxmin()
-        with open(os.path.join(self.save_path, "best_epoch.txt"), "w") as f:
+        with open(os.path.join(self.SAVE_PATH, "best_epoch.txt"), "w") as f:
             f.write(f"{best_epoch}\n")
-        
-        # build train history DataFrame
-        train_logs = pd.DataFrame(train_logs)
-        train_logs.to_csv(os.path.join(self.save_path, "train_logs.csv"), index=False)
 
         return train_logs
     

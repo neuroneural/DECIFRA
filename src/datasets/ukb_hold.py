@@ -38,6 +38,12 @@ def load_data_hold(
         "age_bins": age_bins
     }, demo_df
 
+def load_data_hold_2205():
+    data_dict, demo_df = load_data_hold()
+    data = data_dict["data"]
+    data = data[:, ::3, :]
+    return data
+
 if __name__ == "__main__":
     # Example of how to use the function to load the data
     data_dict, demo_df = load_data_hold()

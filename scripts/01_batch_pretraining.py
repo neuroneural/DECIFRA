@@ -1,0 +1,119 @@
+from omegaconf import OmegaConf, DictConfig
+import numpy as np
+import pandas as pd
+import torch 
+import os
+import time
+
+from src.settings import LOGS_ROOT, DATA_ROOT
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Run configuration for my model")
+
+    parser.add_argument("--model", type=str, required=True, help="Name of the model architecture")
+    parser.add_argument("--dataset", type=str, required=True, help="Name of the dataset to use")
+    parser.add_argument("--idx", type=int, required=True, help="index of the run")
+    parser.add_argument("--postfix", type=str, help="Postfix for save path", default=None)
+    parser.add_argument("--batch_size", type=int, help="Batch size for training", default=128)
+    parser.add_argument("--epochs", type=int, help="Number of epochs for training", default=500)
+
+    args = parser.parse_args()
+    model_name, ds_name = args.model, args.dataset
+    print(f"Running {args.model} on {args.dataset} (Index: {args.idx})")
+
+    idx, postfix = args.idx, args.postfix
+    SAVE_PATH = f"1_pretrain-{ds_name}-{model_name}" if postfix is None else f"1_pretrain-{ds_name}-{model_name}-{postfix}"
+    SAVE_PATH = os.path.join(LOGS_ROOT, SAVE_PATH, f"{idx:02d}")
+    print(f"Saving to: {SAVE_PATH}")
+
+    batch_size, epochs = args.batch_size, args.epochs
+    print(f"Batch size: {batch_size}, Epochs: {epochs}")
+
+    # --- SET DATASET ---
+    if ds_name == "ukb":
+        from src.datasets.ukb_hold import load_data_hold as load_ukb_pretrain
+        UKB_DATADICT, demo_df = load_ukb_pretrain(
+            file_path=os.path.join(DATA_ROOT, "ukb_ica/ukb_data_hold.npz"),
+            demo_path=os.path.join(DATA_ROOT, "ukb_ica/demographics_legend_hold.csv"),
+        )
+        data = UKB_DATADICT['data']
+
+    elif ds_name == "ukb_aal":
+        from src.datasets.ukb_hold import load_data_hold as load_ukb_aal_pretrain
+        data = load_ukb_aal_pretrain()
+    elif ds_name == "ukb_2205":
+        from src.datasets.ukb_hold import load_data_hold_2205 as load_ukb_2205_pretrain
+        data = load_ukb_2205_pretrain()
+
+    else:
+        raise ValueError(f"Unknown dataset name: {ds_name}")
+
+    # prepare train and validation sets
+    from sklearn.model_selection import train_test_split
+    train_data, val_data = train_test_split(data, test_size=0.2, random_state=42)
+    print(f"Train data shape: {train_data.shape}, Val data shape: {val_data.shape}")
+
+    # --- SET MODEL ---
+    from src.models.DECIFRA import default_HPs
+
+    if model_name == "DECIFRA":
+        from src.models.DECIFRA import DECIFRA as ModelClass, default_HPs
+    elif model_name == "LSTM":
+        from src.models.LSTM_forecaster import LSTM as ModelClass, default_HPs
+    elif model_name == "DECIFRA_noGate":
+        from src.models.DECIFRA import DECIFRA_noGate as ModelClass, default_HPs
+    elif model_name == "DECIFRA_noGate_IMix_Res":
+        from src.models.DECIFRA import DECIFRA_noGate_IMix_Res as ModelClass, default_HPs
+    elif model_name == "DECIFRA_IMix":
+        from src.models.DECIFRA import DECIFRA_IMix as ModelClass, default_HPs
+    elif model_name == "DECIFRA_IMix_Res":
+        from src.models.DECIFRA import DECIFRA_IMix_Res as ModelClass, default_HPs
+    elif model_name == "DECIFRA_Gated_IMix_Res":
+        from src.models.DECIFRA import DECIFRA_Gated_IMix_Res as ModelClass, default_HPs
+    else:
+        raise ValueError(f"Unknown model name: {model_name}")
+
+    cfg = {
+        "model": model_name,
+        "dataset": ds_name,
+        "batch_size": batch_size,
+        "idx": idx,
+        "epochs": epochs,
+        "data_info": {
+            "feature_size": data.shape[2],
+            "n_classes": 2,
+        }
+    }
+        
+    cfg = OmegaConf.create(cfg)
+    model_cfg = default_HPs(cfg)
+    model = ModelClass(model_cfg)
+    # print(OmegaConf.to_yaml(model_cfg))
+    # add model parameter count to config
+    n_params = sum(p.numel() for p in model.parameters())
+    print(f"Number of model parameters: {n_params}")
+    cfg.n_params = n_params
+
+    # --- TRAIN ---
+    from src.trainers.BasicPreTrainer import BasicPreTrainer
+    import torch
+    device = torch.device("cuda")
+    optimizer = model.get_optimizer()
+    model.train()
+
+    train_dataloader = model.prepare_pretraining_dataloader(train_data, shuffle=True)
+    val_dataloader = model.prepare_pretraining_dataloader(val_data, shuffle=False)
+    
+    trainer = BasicPreTrainer(
+        cfg=cfg,
+        model_cfg=model_cfg,
+        model=model,
+        optimizer=optimizer,
+        train_loader=train_dataloader,
+        val_loader=val_dataloader,
+        epochs=epochs,
+        save_path=SAVE_PATH,
+    )
+
+    train_logs = trainer.run()
