@@ -86,151 +86,109 @@ class meanGRU(BaseModel):
     def prepare_pretraining_dataloader(data, shuffle: bool, batch_size: int = 64, zscore: bool = True):
         return BaseModel.prepare_dataloader(data, None, "TS_only", shuffle, batch_size, zscore)
 
-    def forward(self, x): 
-        # x shape: [B, T, C]
-        B, T, C = x.shape
-        orig_x = x
-
-        E = self.model_cfg.rnn.input_embedding_size
-        H = self.model_cfg.rnn.hidden_size
-
-        # 1. Embed signals
+    def embed_signals(self, x):
+        """Pass inputs through the embedder(s). Shape: [B, T, C] or [B, C]"""
+        B, C = x.size(0), self.model_cfg.input_size
+        if x.dim() == 2: x = x.unsqueeze(1)
+            
         if self.model_cfg.single_embedder:
-            x_emb = self.embedder(x.unsqueeze(-1))  # [B, T, C, E]
+            return self.embedder(x.unsqueeze(-1))
         else:
-            x_emb_list = [self.embedder[i](x[:, :, i].unsqueeze(-1)) for i in range(C)]
-            x_emb = torch.stack(x_emb_list, dim=2)  # [B, T, C, E]
+            return torch.stack([self.embedder[i](x[:, :, i].unsqueeze(-1)) for i in range(C)], dim=2)
 
-        # 2. Run GRU (force teaching over the entire sequence T)
+    def run_gru(self, x_emb, h_in=None):
+        """Run GRU. Returns gru_out: [B, T, C, H], h_out: [L, B, C, H]"""
+        B, T, C, E = x_emb.shape
+        H, num_layers = self.model_cfg.rnn.hidden_size, self.model_cfg.rnn.num_layers
+
         if self.model_cfg.single_GRU:
-            # Process all channels effectively in parallel treating them as independent items in batch
-            x_input = x_emb.transpose(1, 2).reshape(B * C, T, E)  # [B*C, T, E]
-            gru_out, _ = self.gru(x_input)  # [B*C, T, H]
-            gru_out = gru_out.reshape(B, C, T, H).transpose(1, 2)  # [B, T, C, H]
+            x_input = x_emb.transpose(1, 2).reshape(B * C, T, E)
+            h_input = h_in.reshape(num_layers, B * C, H) if h_in is not None else None
+            gru_out, h_out = self.gru(x_input, h_input)
+            
+            return gru_out.reshape(B, C, T, H).transpose(1, 2), h_out.reshape(num_layers, B, C, H)
         else:
-            # Process each channel independently with its own GRU
-            gru_out_list = []
+            gru_out_list, h_out_list = [], []
             for i in range(C):
-                x_input_i = x_emb[:, :, i, :]  # [B, T, E]
-                out_i, _ = self.gru[i](x_input_i)  # [B, T, H]
+                h_input_i = h_in[:, :, i, :] if h_in is not None else None
+                out_i, h_i = self.gru[i](x_emb[:, :, i, :], h_input_i)
                 gru_out_list.append(out_i)
-            gru_out = torch.stack(gru_out_list, dim=2)  # [B, T, C, H]
+                h_out_list.append(h_i)
+                
+            return torch.stack(gru_out_list, dim=2), torch.stack(h_out_list, dim=2)
 
-        # 3. Forecast prediction (Depth-based Autoregressive Loop)
-        # We predict using the hidden state from the previous time step.
-        # hidden_states represent the state after seeing x_0, x_1, ... x_t
-        hidden_states = gru_out[:, :-1, :, :]  # [B, T-1, C, H]
-        
-        # Initial depth 1 prediction (predicts x_{t+1})
+    def predict_signals(self, hidden_states):
+        """Pass hidden states through predictor(s). hidden_states shape: [B, T, C, H] or [B, C, H]"""
+        C = self.model_cfg.input_size
         if self.model_cfg.single_predictor:
-            pred_curr = self.predictor(hidden_states).squeeze(-1) # [B, T-1, C]
-        else:
-            predicted_list = [self.predictor[i](hidden_states[:, :, i, :]) for i in range(C)]
-            pred_curr = torch.stack(predicted_list, dim=2).squeeze(-1) # [B, T-1, C]
+            return self.predictor(hidden_states).squeeze(-1)
+        
+        if hidden_states.dim() == 3:
+            pred_list = [self.predictor[i](hidden_states[:, i, :]) for i in range(C)]
+            return torch.stack(pred_list, dim=1).squeeze(-1)
+            
+        pred_list = [self.predictor[i](hidden_states[:, :, i, :]) for i in range(C)]
+        return torch.stack(pred_list, dim=2).squeeze(-1)
 
-        depth = self.model_cfg.loss.get("prediction_depth", 1)
+    def forward(self, x): 
+        B, C = x.size(0), self.model_cfg.input_size
+        
+        x_emb = self.embed_signals(x)
+        gru_out, _ = self.run_gru(x_emb)
+        
+        # Base prediction from t_0 to T_minus_1
+        hidden_states = gru_out[:, :-1, :, :]
+        pred_curr = self.predict_signals(hidden_states)
+
+        depth = self.model_cfg.loss.prediction_depth
         all_preds = [pred_curr]
         
-        h_curr = hidden_states
+        num_layers, H = self.model_cfg.rnn.num_layers, self.model_cfg.rnn.hidden_size
+        T_minus_1 = hidden_states.size(1)
+        
+        # Broadcast h_curr for potential depth loop
+        h_curr = hidden_states.reshape(B * T_minus_1, C, H).unsqueeze(0).repeat(num_layers, 1, 1, 1)
 
-        # Optional prediction depth loop
         for d in range(1, depth):
-            # 1. Embed current predictions
-            if self.model_cfg.single_embedder:
-                emb_curr = self.embedder(pred_curr.unsqueeze(-1)) # [B, T-1, C, E]
-            else:
-                emb_curr_list = [self.embedder[i](pred_curr[:, :, i].unsqueeze(-1)) for i in range(C)]
-                emb_curr = torch.stack(emb_curr_list, dim=2) # [B, T-1, C, E]
+            pred_flat = pred_curr.reshape(B * T_minus_1, 1, C)
+            emb_curr = self.embed_signals(pred_flat)
             
-            # 2. Run 1 step of GRU to update h_curr to h_next
-            if self.model_cfg.single_GRU:
-                x_input = emb_curr.reshape(B * (T-1) * C, 1, E) 
-                # h_input needs to be [num_layers, batch_size, H]
-                num_layers = self.model_cfg.rnn.get("num_layers", 1)
-                h_input = h_curr.reshape(B * (T-1) * C, H).unsqueeze(0).repeat(num_layers, 1, 1) # [L, B*(T-1)*C, H]
-                
-                _, h_next = self.gru(x_input, h_input) # h_next is [L, B*(T-1)*C, H]
-                h_curr = h_next[-1].reshape(B, T-1, C, H) # take the last layer hidden state
-            else:
-                h_next_list = []
-                for i in range(C):
-                    x_input_i = emb_curr[:, :, i, :].reshape(B * (T-1), 1, E) 
-                    
-                    num_layers = self.model_cfg.rnn.get("num_layers", 1)
-                    h_input_i = h_curr[:, :, i, :].reshape(B * (T-1), H).unsqueeze(0).repeat(num_layers, 1, 1)
+            gru_out_step, h_curr = self.run_gru(emb_curr, h_in=h_curr)
+            
+            pred_curr_flat = self.predict_signals(gru_out_step.squeeze(1))
+            pred_curr = pred_curr_flat.reshape(B, T_minus_1, C)
+            
+            # Truncate states exceeding timeline. E.g. t+2 cannot be forecasted at T-1
+            padded_pred = torch.zeros(B, T_minus_1, C, device=pred_curr.device)
+            padded_pred[:, :T_minus_1 - d, :] = pred_curr[:, :-d, :]
+            
+            all_preds.append(padded_pred)
 
-                    _, h_next_i = self.gru[i](x_input_i, h_input_i)
-                    h_next_list.append(h_next_i[-1].reshape(B, T-1, H))
-                h_curr = torch.stack(h_next_list, dim=2) 
-
-            # 3. Predict next step
-            if self.model_cfg.single_predictor:
-                pred_curr = self.predictor(h_curr).squeeze(-1) # [B, T-1, C]
-            else:
-                pred_curr_list = [self.predictor[i](h_curr[:, :, i, :]) for i in range(C)]
-                pred_curr = torch.stack(pred_curr_list, dim=2).squeeze(-1) # [B, T-1, C]
-
-            all_preds.append(pred_curr)
-
-        # Output predictions: shape [B, T-1, C, depth]
-        predicted = torch.stack(all_preds, dim=-1)
-
-        loss_load = {
-            "predicted": predicted,
-            "originals": orig_x,
-        }
-
-        # As a purely forecasting model, we return logits=None
-        return None, loss_load
+        return None, {"predicted": torch.stack(all_preds, dim=-1), "originals": x}
 
     def compute_loss(self, loss_load, targets):
-        delay = self.model_cfg.loss.get("prediction_delay", 0)
-        depth = self.model_cfg.loss.get("prediction_depth", 1)
+        delay = self.model_cfg.loss.prediction_delay
+        depth = self.model_cfg.loss.prediction_depth
         forecast_weight = self.model_cfg.loss.forecast_weight
 
-        originals = loss_load["originals"]
-        predicted = loss_load["predicted"] # [B, T-1, C, depth]
-
-        T = originals.size(1)
-
-        total_forecast_loss = 0.0
+        originals, predicted = loss_load["originals"], loss_load["predicted"]
+        T, total_loss = originals.size(1), 0.0
         
-        # We calculate MSE over each predicted depth step
-        # depth=0 is t+1, depth=1 is t+2, etc. (with delay added on top)
         for d in range(depth):
             total_shift = delay + d
-            
-            # target sequence starts at 1 + total_shift
-            # If shift is too large, we break so we don't index out of bounds
-            if 1 + total_shift >= T:
-                break
+            if 1 + total_shift >= T: break
                 
             target_signal = originals[:, 1 + total_shift:, :]
-            
-            # predicted[..., d] corresponds to predicting target_signal
-            # predicted[..., d] has T-1 time points (predictions for 0 to T-2)
-            # but we only evaluate the overlapping portion.
-            # prediction at 0 corresponds to t=1 + d
-            # prediction at T-2-total_shift corresponds to t=T-1
             end_idx = (T - 1) - total_shift
             pred_d = predicted[:, delay:delay+end_idx, :, d] 
             
-            total_forecast_loss += mse_loss(pred_d, target_signal)
+            total_loss += mse_loss(pred_d, target_signal)
 
-        # Average over whatever depths were successfully matched
-        total_forecast_loss = total_forecast_loss / depth
-
-        loss = forecast_weight * total_forecast_loss
-        loss_components = {
-            "forecast_loss": total_forecast_loss.item(),
-        }
-
-        return loss, loss_components
+        total_loss = forecast_weight * (total_loss / depth)
+        return total_loss, {"forecast_loss": total_loss.item()}
 
     def handle_batch(self, batch):
-        # Even if batch has labels, we only extract data for purely forecasting models
         data = batch[0] if isinstance(batch, (tuple, list)) else batch
         _, loss_load = self.forward(data)
         loss, batch_log = self.compute_loss(loss_load, None)
-
         return loss, batch_log
