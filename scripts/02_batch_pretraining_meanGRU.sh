@@ -4,7 +4,7 @@
 #SBATCH -c 1
 #SBATCH --mem=15g
 #SBATCH -p qTRDGPUH
-#SBATCH --gres=gpu:V100:1           
+#SBATCH --gres=gpu:A100:1           
 #SBATCH -t 1600                     
 #SBATCH -J pretrain_meanGRU                   
 #SBATCH -D .                        

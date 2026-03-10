@@ -181,7 +181,7 @@ def find_optimal_batch_size(model, train_data, device, starting_batch_size=2, ma
             current_batch_size *= 2
             
         except RuntimeError as e:
-            if "out of memory" in str(e).lower() or "oom" in str(e).lower() or "memory" in str(e).lower() or "allocate" in str(e).lower():
+            if "out of memory" in str(e).lower() or "oom" in str(e).lower() or "allocate" in str(e).lower():
                 print(f"Memory limit reached at batch size {current_batch_size}.")
                 import gc
                 if torch.cuda.is_available():

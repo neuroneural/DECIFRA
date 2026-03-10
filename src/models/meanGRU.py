@@ -111,22 +111,26 @@ class meanGRU(BaseModel):
         if self.model_cfg.single_GRU:
             x_input = x_emb.transpose(1, 2).reshape(B * C, T, E)
             h_input = h_in.reshape(num_layers, B * C, H) if h_in is not None else None
+            
+            self.gru.flatten_parameters()
             gru_out, h_out = self.gru(x_input, h_input)
             
             return gru_out.reshape(B, C, T, H).transpose(1, 2), h_out.reshape(num_layers, B, C, H)
-        else:
-            gru_out_list, h_out_list = [], []
-            for i in range(C):
-                h_input_i = h_in[:, :, i, :] if h_in is not None else None
-                out_i, h_i = self.gru[i](x_emb[:, :, i, :], h_input_i)
-                gru_out_list.append(out_i)
-                h_out_list.append(h_i)
-                
-            return torch.stack(gru_out_list, dim=2), torch.stack(h_out_list, dim=2)
+        
+        gru_out_list, h_out_list = [], []
+        for i in range(C):
+            self.gru[i].flatten_parameters()
+            h_input_i = h_in[:, :, i, :] if h_in is not None else None
+            out_i, h_i = self.gru[i](x_emb[:, :, i, :], h_input_i)
+            gru_out_list.append(out_i)
+            h_out_list.append(h_i)
+            
+        return torch.stack(gru_out_list, dim=2), torch.stack(h_out_list, dim=2)
 
     def predict_signals(self, hidden_states):
         """Pass hidden states through predictor(s). hidden_states shape: [B, T, C, H] or [B, C, H]"""
         C = self.model_cfg.input_size
+        
         if self.model_cfg.single_predictor:
             return self.predictor(hidden_states).squeeze(-1)
         
@@ -154,7 +158,7 @@ class meanGRU(BaseModel):
         T_minus_1 = hidden_states.size(1)
         
         # Broadcast h_curr for potential depth loop
-        h_curr = hidden_states.reshape(B * T_minus_1, C, H).unsqueeze(0).repeat(num_layers, 1, 1, 1)
+        h_curr = hidden_states.reshape(B * T_minus_1, C, H).unsqueeze(0).repeat(num_layers, 1, 1, 1).contiguous()
 
         for d in range(1, depth):
             pred_flat = pred_curr.reshape(B * T_minus_1, 1, C)
