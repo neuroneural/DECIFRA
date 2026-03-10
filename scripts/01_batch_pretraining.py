@@ -15,8 +15,9 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, required=True, help="Name of the dataset to use")
     parser.add_argument("--idx", type=int, required=True, help="index of the run")
     parser.add_argument("--postfix", type=str, help="Postfix for save path", default=None)
-    parser.add_argument("--batch_size", type=int, help="Batch size for training", default=128)
+    parser.add_argument("--batch_size", type=int, help="Batch size for training (0 for auto-detection)", default=0)
     parser.add_argument("--epochs", type=int, help="Number of epochs for training", default=500)
+    parser.add_argument("--hp_config", type=str, help="Optional path to a .yaml hyperparameter config file", default=None)
 
     args = parser.parse_args()
     model_name, ds_name = args.model, args.dataset
@@ -45,6 +46,9 @@ if __name__ == "__main__":
     elif ds_name == "ukb_2205":
         from src.datasets.ukb_hold import load_data_hold_2205 as load_ukb_2205_pretrain
         data = load_ukb_2205_pretrain()
+    elif ds_name == "dummy":
+        from src.datasets.dummy import load_dummy_data
+        data = load_dummy_data()
 
     else:
         raise ValueError(f"Unknown dataset name: {ds_name}")
@@ -55,22 +59,31 @@ if __name__ == "__main__":
     print(f"Train data shape: {train_data.shape}, Val data shape: {val_data.shape}")
 
     # --- SET MODEL ---
-    from src.models.DECIFRA import default_HPs
-
+    
     if model_name == "DECIFRA":
         from src.models.DECIFRA import DECIFRA as ModelClass, default_HPs
+        hp_loader = default_HPs
     elif model_name == "LSTM":
         from src.models.LSTM_forecaster import LSTM as ModelClass, default_HPs
+        hp_loader = default_HPs
     elif model_name == "DECIFRA_noGate":
         from src.models.DECIFRA import DECIFRA_noGate as ModelClass, default_HPs
+        hp_loader = default_HPs
     elif model_name == "DECIFRA_noGate_IMix_Res":
         from src.models.DECIFRA import DECIFRA_noGate_IMix_Res as ModelClass, default_HPs
+        hp_loader = default_HPs
     elif model_name == "DECIFRA_IMix":
         from src.models.DECIFRA import DECIFRA_IMix as ModelClass, default_HPs
+        hp_loader = default_HPs
     elif model_name == "DECIFRA_IMix_Res":
         from src.models.DECIFRA import DECIFRA_IMix_Res as ModelClass, default_HPs
+        hp_loader = default_HPs
     elif model_name == "DECIFRA_Gated_IMix_Res":
         from src.models.DECIFRA import DECIFRA_Gated_IMix_Res as ModelClass, default_HPs
+        hp_loader = default_HPs
+    elif model_name == "meanGRU":
+        from src.models.meanGRU import meanGRU as ModelClass, default_HPs, custom_HPs
+        hp_loader = custom_HPs if args.hp_config else default_HPs
     else:
         raise ValueError(f"Unknown model name: {model_name}")
 
@@ -87,7 +100,13 @@ if __name__ == "__main__":
     }
         
     cfg = OmegaConf.create(cfg)
-    model_cfg = default_HPs(cfg)
+    
+    # Init hyperparameters depending on if a custom config was passed
+    if args.hp_config and model_name == "meanGRU":
+        model_cfg = hp_loader(cfg, args.hp_config)
+    else:
+        model_cfg = hp_loader(cfg)
+        
     model = ModelClass(model_cfg)
     # print(OmegaConf.to_yaml(model_cfg))
     # add model parameter count to config
@@ -96,14 +115,20 @@ if __name__ == "__main__":
     cfg.n_params = n_params
 
     # --- TRAIN ---
-    from src.trainers.BasicPreTrainer import BasicPreTrainer
+    from src.trainers.BasicPreTrainer import BasicPreTrainer, find_optimal_batch_size
     import torch
-    device = torch.device("cuda")
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+    
+    if batch_size <= 0:
+        batch_size = find_optimal_batch_size(model, train_data, device)
+        cfg.batch_size = batch_size
+        print(f"\nFinal optimal batch size utilized: {batch_size}")
+
     optimizer = model.get_optimizer()
     model.train()
 
-    train_dataloader = model.prepare_pretraining_dataloader(train_data, shuffle=True)
-    val_dataloader = model.prepare_pretraining_dataloader(val_data, shuffle=False)
+    train_dataloader = model.prepare_pretraining_dataloader(train_data, shuffle=True, batch_size=batch_size)
+    val_dataloader = model.prepare_pretraining_dataloader(val_data, shuffle=False, batch_size=batch_size)
     
     trainer = BasicPreTrainer(
         cfg=cfg,
