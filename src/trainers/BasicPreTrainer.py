@@ -137,3 +137,66 @@ class BasicPreTrainer:
 
         return train_logs
     
+def find_optimal_batch_size(model, train_data, device, starting_batch_size=2, max_batch_size=8192):
+    """
+    Finds the maximum batch size that fits in memory for a given model and dataset.
+    """
+    import gc
+    import torch
+    
+    print(f"Starting smart batch size detection on {device}...")
+    model.to(device)
+    optimizer = model.get_optimizer()
+    
+    current_batch_size = starting_batch_size
+    optimal_batch_size = starting_batch_size
+    
+    while current_batch_size <= max_batch_size:
+        try:
+            tested_batch_size = min(current_batch_size, len(train_data))
+            dummy_data = train_data[:tested_batch_size]
+            dummy_loader = model.prepare_pretraining_dataloader(dummy_data, shuffle=False, batch_size=tested_batch_size, zscore=False)
+            batch = next(iter(dummy_loader))
+            batch = [b.to(device) for b in batch] if isinstance(batch, (list, tuple)) else batch.to(device)
+            
+            model.train()
+            optimizer.zero_grad()
+            
+            loss, _ = model.handle_batch(batch)
+            loss.backward()
+            optimizer.step()
+            
+            optimal_batch_size = tested_batch_size
+            
+            del dummy_loader, batch, loss, dummy_data
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            elif torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+            gc.collect()
+            
+            if optimal_batch_size == len(train_data):
+                break
+                
+            current_batch_size *= 2
+            
+        except RuntimeError as e:
+            if "out of memory" in str(e).lower() or "oom" in str(e).lower() or "memory" in str(e).lower() or "allocate" in str(e).lower():
+                print(f"Memory limit reached at batch size {current_batch_size}.")
+                import gc
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                elif torch.backends.mps.is_available():
+                    torch.mps.empty_cache()
+                gc.collect()
+                break
+            else:
+                raise e
+
+    # Scale down by a small safety factor to avoid OOM during actual training with slightly different sequence lengths etc.
+    final_batch_size = max(1, int(optimal_batch_size * 0.8))
+    final_batch_size = min(final_batch_size, len(train_data))
+    
+    optimizer.zero_grad()
+    
+    return final_batch_size
