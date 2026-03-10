@@ -108,6 +108,9 @@ class meanGRU(BaseModel):
         B, T, C, E = x_emb.shape
         H, num_layers = self.model_cfg.rnn.hidden_size, self.model_cfg.rnn.num_layers
 
+        x_emb = x_emb.contiguous()
+        if h_in is not None: h_in = h_in.contiguous()
+
         if self.model_cfg.single_GRU:
             x_input = x_emb.transpose(1, 2).reshape(B * C, T, E)
             h_input = h_in.reshape(num_layers, B * C, H) if h_in is not None else None
@@ -115,7 +118,7 @@ class meanGRU(BaseModel):
             self.gru.flatten_parameters()
             gru_out, h_out = self.gru(x_input, h_input)
             
-            return gru_out.reshape(B, C, T, H).transpose(1, 2), h_out.reshape(num_layers, B, C, H)
+            return gru_out.reshape(B, C, T, H).transpose(1, 2).contiguous(), h_out.reshape(num_layers, B, C, H).contiguous()
         
         gru_out_list, h_out_list = [], []
         for i in range(C):
@@ -125,11 +128,12 @@ class meanGRU(BaseModel):
             gru_out_list.append(out_i)
             h_out_list.append(h_i)
             
-        return torch.stack(gru_out_list, dim=2), torch.stack(h_out_list, dim=2)
+        return torch.stack(gru_out_list, dim=2).contiguous(), torch.stack(h_out_list, dim=2).contiguous()
 
     def predict_signals(self, hidden_states):
         """Pass hidden states through predictor(s). hidden_states shape: [B, T, C, H] or [B, C, H]"""
         C = self.model_cfg.input_size
+        hidden_states = hidden_states.contiguous()
         
         if self.model_cfg.single_predictor:
             return self.predictor(hidden_states).squeeze(-1)
