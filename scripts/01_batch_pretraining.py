@@ -39,7 +39,13 @@ if __name__ == "__main__":
             demo_path=os.path.join(DATA_ROOT, "ukb_ica/demographics_legend_hold.csv"),
         )
         data = UKB_DATADICT['data']
-
+    elif ds_name == "ukb_exp":
+        from src.datasets.ukb_exp import load_data_exp as load_ukb_exp_pretrain
+        UKB_DATADICT, demo_df = load_ukb_exp_pretrain(
+            file_path=os.path.join(DATA_ROOT, "ukb_ica/ukb_data_exp.npz"),
+            demo_path=os.path.join(DATA_ROOT, "ukb_ica/demographics_legend_exp.csv"),
+        )
+        data = UKB_DATADICT['data']
     elif ds_name == "ukb_aal":
         from src.datasets.ukb_hold import load_data_hold as load_ukb_aal_pretrain
         data = load_ukb_aal_pretrain()
@@ -59,7 +65,7 @@ if __name__ == "__main__":
     print(f"Train data shape: {train_data.shape}, Val data shape: {val_data.shape}")
 
     # --- SET MODEL ---
-    
+
     if model_name == "DECIFRA":
         from src.models.DECIFRA import DECIFRA as ModelClass, default_HPs
         hp_loader = default_HPs
