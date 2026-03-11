@@ -97,11 +97,12 @@ class meanGRU(BaseModel):
         """Pass inputs through the embedder(s). Shape: [B, T, C] or [B, C]"""
         B, C = x.size(0), self.model_cfg.input_size
         if x.dim() == 2: x = x.unsqueeze(1)
+        x = x.contiguous()
             
         if self.model_cfg.single_embedder:
-            return self.embedder(x.unsqueeze(-1))
-        else:
-            return torch.stack([self.embedder[i](x[:, :, i].unsqueeze(-1)) for i in range(C)], dim=2)
+            return self.embedder(x.unsqueeze(-1).contiguous())
+        
+        return torch.stack([self.embedder[i](x[:, :, i].contiguous().unsqueeze(-1)) for i in range(C)], dim=2).contiguous()
 
     def run_gru(self, x_emb, h_in=None):
         """Run GRU. Returns gru_out: [B, T, C, H], h_out: [L, B, C, H]"""
@@ -136,23 +137,24 @@ class meanGRU(BaseModel):
         hidden_states = hidden_states.contiguous()
         
         if self.model_cfg.single_predictor:
-            return self.predictor(hidden_states).squeeze(-1)
+            return self.predictor(hidden_states).squeeze(-1).contiguous()
         
         if hidden_states.dim() == 3:
-            pred_list = [self.predictor[i](hidden_states[:, i, :]) for i in range(C)]
+            pred_list = [self.predictor[i](hidden_states[:, i, :].contiguous()) for i in range(C)]
             return torch.stack(pred_list, dim=1).squeeze(-1).contiguous()
             
-        pred_list = [self.predictor[i](hidden_states[:, :, i, :]) for i in range(C)]
+        pred_list = [self.predictor[i](hidden_states[:, :, i, :].contiguous()) for i in range(C)]
         return torch.stack(pred_list, dim=2).squeeze(-1).contiguous()
 
     def forward(self, x): 
         B, C = x.size(0), self.model_cfg.input_size
+        x = x.contiguous()
         
         x_emb = self.embed_signals(x)
         gru_out, _ = self.run_gru(x_emb)
         
         # Base prediction from t_0 to T_minus_1
-        hidden_states = gru_out[:, :-1, :, :]
+        hidden_states = gru_out[:, :-1, :, :].contiguous()
         pred_curr = self.predict_signals(hidden_states)
 
         depth = self.model_cfg.loss.prediction_depth
