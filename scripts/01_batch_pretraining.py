@@ -89,7 +89,20 @@ if __name__ == "__main__":
         hp_loader = default_HPs
     elif model_name == "meanGRU":
         from src.models.meanGRU import meanGRU as ModelClass, default_HPs, custom_HPs
-        hp_loader = custom_HPs if args.hp_config else default_HPs
+        
+        if args.hp_config:
+            hp_loader = lambda cfg: custom_HPs(cfg, args.hp_config)
+        else:
+            hp_loader = default_HPs
+
+    elif model_name == "meanLSTM":
+        from src.models.meanLSTM import meanLSTM as ModelClass, default_HPs, custom_HPs
+        
+        if args.hp_config:
+            hp_loader = lambda cfg: custom_HPs(cfg, args.hp_config)
+        else:
+            hp_loader = default_HPs
+        
     else:
         raise ValueError(f"Unknown model name: {model_name}")
 

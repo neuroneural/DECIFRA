@@ -89,24 +89,19 @@ class BaseModel(nn.Module, ABC):
         return optimizer
 
     @staticmethod
-    def prepare_dataloader(
-        data, labels, type: str, shuffle: bool, batch_size: int = 64, zscore: bool = True
-    ):
+    def prepare_dataloader(data, labels, type: str, shuffle: bool, batch_size: int = 64, zscore: bool = True):
         """
-        Dataloader factory for time series and FNC data.
-        Creates a DataLoader from time series data and labels, derives FNC as PCC if needed.
-        Most of the models hook their `prepare_dataloader` methods to this function.
+        Takes raw data and labels, and generates a PyTorch DataLoader.
 
-        Args
-        ----
-        data : array-like, shape (B, T, D)
-            Time series data of shape Batch x Time x (D)Features 
-        labels : array-like, shape (B,)
-            Class labels for the data.
+        Parameters
+        ----------
+        data : np.ndarray or torch.Tensor
+            Raw input data for the model.
+        labels : np.ndarray or torch.Tensor
+            Labels for the data.
         type : str
-            Determines the type of data stored in the dataloader:
-            "TS" for time series, "FNC" for connectivity matrices, "ALL" for both.
-        shuffle : bool, optional
+            Type of features to extract: 'TS' (time series), 'FNC' (functional network connectivity), or 'ALL' (both).
+        shuffle : bool
             Whether to shuffle batching in the DataLoader. Usually True for training, False for validation/test.
         batch_size : int, optional
             Batch size for the DataLoader.
@@ -118,29 +113,33 @@ class BaseModel(nn.Module, ABC):
         DataLoader
             A PyTorch DataLoader generating the batches of data (as TS or FNC, or both) and labels.
         """
+        def to_tensor(x, dtype):
+            if isinstance(x, torch.Tensor):
+                return x.to(dtype)
+            return torch.tensor(x, dtype=dtype)
 
         if type == "TS" or type == "TS_only":
             if zscore:
                 data = zscore_np(data, axis=1) # (B, T, D)
-            data = torch.tensor(data, dtype=torch.float32)
+            data = to_tensor(data, torch.float32)
             if type == "TS":
-                labels = torch.tensor(labels, dtype=torch.int64)
+                labels = to_tensor(labels, torch.int64)
                 dataset = TensorDataset(data, labels)
             elif type == "TS_only":
                 dataset = TensorDataset(data)
 
         elif type == "FNC":
             fnc = corrcoef_batch(data)  # (B, D, D)
-            fnc = torch.tensor(fnc, dtype=torch.float32)
-            labels = torch.tensor(labels, dtype=torch.int64)
+            fnc = to_tensor(fnc, torch.float32)
+            labels = to_tensor(labels, torch.int64)
             dataset = TensorDataset(fnc, labels)
         elif type == "ALL":
             if zscore:
                 data = zscore_np(data, axis=1) # (B, T, D)
             fnc = corrcoef_batch(data)  # (B, D, D)
-            data = torch.tensor(data, dtype=torch.float32)
-            fnc = torch.tensor(fnc, dtype=torch.float32)
-            labels = torch.tensor(labels, dtype=torch.int64)
+            data = to_tensor(data, torch.float32)
+            fnc = to_tensor(fnc, torch.float32)
+            labels = to_tensor(labels, torch.int64)
             dataset = TensorDataset(data, fnc, labels)
         else:
             raise ValueError(f"Unknown data type: {type}. Supported types are 'TS', 'FNC', and 'ALL'.")
