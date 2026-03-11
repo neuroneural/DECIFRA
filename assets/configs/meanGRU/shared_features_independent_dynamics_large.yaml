@@ -1,0 +1,15 @@
+single_embedder: true
+single_GRU: false
+single_predictor: true
+rnn:
+  input_embedding_size: 64
+  hidden_size: 128
+  num_layers: 3
+  dropout: 0.1
+loss:
+  prediction_delay: 0
+  prediction_depth: 1
+  forecast_weight: 1.0
+lr: 0.001
+load_pretrained: false
+pretrained_path: null
