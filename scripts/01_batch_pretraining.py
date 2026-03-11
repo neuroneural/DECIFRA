@@ -102,6 +102,14 @@ if __name__ == "__main__":
             hp_loader = lambda cfg: custom_HPs(cfg, args.hp_config)
         else:
             hp_loader = default_HPs
+            
+    elif model_name == "VAR":
+        from src.models.VAR import VAR as ModelClass, default_HPs, custom_HPs
+        
+        if args.hp_config:
+            hp_loader = lambda cfg: custom_HPs(cfg, args.hp_config)
+        else:
+            hp_loader = default_HPs
         
     else:
         raise ValueError(f"Unknown model name: {model_name}")
