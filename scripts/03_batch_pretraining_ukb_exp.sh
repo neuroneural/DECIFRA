@@ -11,9 +11,9 @@
 #SBATCH -e ./_error/error_exp%A_%a.err  
 #SBATCH -o ./_out/out_exp%A_%a.out    
 #SBATCH -A psy53c17     
-#SBATCH --array=0-79
+#SBATCH --array=0-59
 
-# 8 configs (4 small + 4 large meanGRU) * 10 runs each = 80 tasks. Indices 0 to 79
+# 6 configs * 10 runs each = 60 tasks. Indices 0 to 59
 
 sleep 10s
 
@@ -28,8 +28,6 @@ CONFIGS=(
     "assets/configs/meanGRU/shared_features_independent_dynamics.yaml"
     "assets/configs/meanGRU/independent_features_shared_dynamics.yaml"
     "assets/configs/meanGRU/all_shared_large.yaml"
-    "assets/configs/meanGRU/all_independent_large.yaml"
-    "assets/configs/meanGRU/shared_features_independent_dynamics_large.yaml"
     "assets/configs/meanGRU/independent_features_shared_dynamics_large.yaml"
 )
 
