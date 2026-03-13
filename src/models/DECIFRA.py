@@ -280,7 +280,7 @@ def decifra_loss(loss_cfg, pretraining, loss_load, targets=None):
 
     if not pretraining:
         logits = loss_load["logits"] if "logits" in loss_load else None
-        assert logits is None and targets is None, "In classification mode, both logits and targets must be provided to compute the classification loss."
+        assert logits is not None and targets is not None, "In classification mode, both logits and targets must be provided to compute the classification loss."
         
         ce_loss = F.cross_entropy(logits, targets)
         loss += ce_loss
@@ -326,8 +326,6 @@ class BTP_noGate(BTP):
         super(BTP_noGate, self).__init__(input_dim, hidden_dim, n_components)
 
     def forward(self, x): # x.shape (batch_size, n_components, GRU hidden size)
-        n_components = x.size(1)
-
         queries = self.query(x)
         keys = self.key(x)
 
@@ -398,8 +396,6 @@ class BTP_IMix(BTP):
         super(BTP_IMix, self).__init__(input_dim, hidden_dim, n_components)
 
     def forward(self, x): # x.shape (batch_size, n_components, GRU hidden size)
-        n_components = x.size(1)
-
         queries = self.query(x)
         keys = self.key(x)
 
@@ -476,7 +472,6 @@ class BTP_Gated_IMix_Res(BTP):
         transfer = torch.bmm(queries, keys.transpose(1, 2))
         norms = torch.linalg.matrix_norm(transfer, keepdim=True)
         transfer = transfer / norms
-
 
         identity = torch.eye(n_components, device=x.device).unsqueeze(0).expand(x.size(0), -1, -1) # shape (batch_size, input_dim, input_dim)
         full_transfer = transfer + identity

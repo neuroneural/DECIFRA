@@ -53,9 +53,12 @@ class BasicPreTrainer:
         self.SAVE_PATH = save_path
 
 
-    def _epoch(self, loader, train: bool):
+    def _epoch(self, loader, train: bool, epoch_idx: int = None):
         with torch.set_grad_enabled(train):
             self.model.train(train)
+            if hasattr(self.model, "set_epoch") and epoch_idx is not None:
+                self.model.set_epoch(epoch_idx)
+                
             total_loss = 0.0
             n_batches = len(loader)
             agg_log = {}
@@ -109,8 +112,8 @@ class BasicPreTrainer:
         torch.save(self.model.state_dict(), os.path.join(checkpoints_path, "model_init.pt"))
         for epoch in range(self.epochs):
             print(f"Epoch {epoch+1}/{self.epochs} | Elapsed time: {time.time()-start:.0f}s")
-            train_log = self._epoch(self.train_loader, train=True)
-            val_log = self._epoch(self.val_loader, train=False)
+            train_log = self._epoch(self.train_loader, train=True, epoch_idx=epoch)
+            val_log = self._epoch(self.val_loader, train=False, epoch_idx=epoch)
 
             torch.save(self.model.state_dict(), os.path.join(checkpoints_path, f"model_{epoch}.pt"))
 

@@ -1,0 +1,21 @@
+# Independent Channels Configuration (No Mixed)
+# Keeps the off-diagonal transition weight as 0 all the time.
+n_training_stages: 1
+eps_stage_ratios: [1.0]
+transition_target_weight: 0.0
+
+# Model architecture settings inherited from vanilla DECIFRA
+single_embedder: true
+single_GRU: true
+single_predictor: true
+rnn:
+  input_embedding_size: 16
+  hidden_size: 32
+btp:
+  hidden_dim: 32
+lr: 0.001
+loss:
+  prediction_delay: 0
+  prediction_depth: 1
+  forecast_weight: 1.0
+  sp_weight: 1.0

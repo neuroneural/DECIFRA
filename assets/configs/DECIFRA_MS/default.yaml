@@ -1,0 +1,22 @@
+# Default Multistage Configuration
+# Stage 1: Independent channels
+# Stage 2: Linear unfreezing of cross-channel interactions
+n_training_stages: 2
+eps_stage_ratios: [0.3, 0.7]
+transition_target_weight: 0.2
+
+# Model architecture settings inherited from vanilla DECIFRA
+single_embedder: true
+single_GRU: true
+single_predictor: true
+rnn:
+  input_embedding_size: 16
+  hidden_size: 32
+btp:
+  hidden_dim: 32
+lr: 0.001
+loss:
+  prediction_delay: 0
+  prediction_depth: 1
+  forecast_weight: 1.0
+  sp_weight: 1.0

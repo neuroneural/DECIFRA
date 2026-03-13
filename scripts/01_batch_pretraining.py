@@ -87,6 +87,9 @@ if __name__ == "__main__":
     elif model_name == "DECIFRA_Gated_IMix_Res":
         from src.models.DECIFRA import DECIFRA_Gated_IMix_Res as ModelClass, default_HPs
         hp_loader = default_HPs
+    elif model_name == "DECIFRA_MS":
+        from src.models.DECIFRA_MS import DECIFRA_MS as ModelClass, default_HPs
+        hp_loader = default_HPs
     elif model_name == "meanGRU":
         from src.models.meanGRU import meanGRU as ModelClass, default_HPs, custom_HPs
         
@@ -143,6 +146,7 @@ if __name__ == "__main__":
 
     # --- TRAIN ---
     from src.trainers.BasicPreTrainer import BasicPreTrainer, find_optimal_batch_size
+    from src.trainers.StagePreTrainer import StagePreTrainer
     import torch
     device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
     
@@ -157,15 +161,36 @@ if __name__ == "__main__":
     train_dataloader = model.prepare_pretraining_dataloader(train_data, shuffle=True, batch_size=batch_size)
     val_dataloader = model.prepare_pretraining_dataloader(val_data, shuffle=False, batch_size=batch_size)
     
-    trainer = BasicPreTrainer(
-        cfg=cfg,
-        model_cfg=model_cfg,
-        model=model,
-        optimizer=optimizer,
-        train_loader=train_dataloader,
-        val_loader=val_dataloader,
-        epochs=epochs,
-        save_path=SAVE_PATH,
-    )
+    # Select Trainer
+    n_stages = model_cfg.get("n_training_stages", 1)
+    if n_stages > 1:
+        # Calculate stage epochs
+        ratios = model_cfg.get("eps_stage_ratios", [1.0/n_stages]*n_stages)
+        stage_epochs_list = [max(1, int(r * epochs)) for r in ratios]
+        # Adjust last stage to match total epochs exactly
+        stage_epochs_list[-1] = epochs - sum(stage_epochs_list[:-1])
+        
+        print(f"Using StagePreTrainer with {n_stages} stages: {stage_epochs_list}")
+        trainer = StagePreTrainer(
+            cfg=cfg,
+            model_cfg=model_cfg,
+            model=model,
+            optimizer=optimizer,
+            train_loader=train_dataloader,
+            val_loader=val_dataloader,
+            stage_epochs_list=stage_epochs_list,
+            save_path=SAVE_PATH,
+        )
+    else:
+        trainer = BasicPreTrainer(
+            cfg=cfg,
+            model_cfg=model_cfg,
+            model=model,
+            optimizer=optimizer,
+            train_loader=train_dataloader,
+            val_loader=val_dataloader,
+            epochs=epochs,
+            save_path=SAVE_PATH,
+        )
 
     train_logs = trainer.run()
