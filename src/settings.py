@@ -14,7 +14,7 @@ node = platform.node()
 if "arctrd" in node:
     DATA_ROOT = "/data/users2/ppopov1/datasets"
 elif "URSMWJ" in node:
-    DATA_ROOT = "/Users/ppopov1/datasets"
+    DATA_ROOT = "/Users/ppopov1/_datasets"
 else:
     DATA_ROOT = os.path.join(ASSETS_ROOT, "data")
 
