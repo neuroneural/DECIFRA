@@ -23,7 +23,7 @@ class BTP_MS_Gated_IMix_Res(BTP):
     """
     def __init__(self, input_dim, hidden_dim, n_components):
         super(BTP_MS_Gated_IMix_Res, self).__init__(input_dim, hidden_dim, n_components)
-        self.off_diag_scale = 1.0
+        self.transfer_weight = 1.0
 
     def forward(self, x):
         n_components = x.size(1)
@@ -35,19 +35,22 @@ class BTP_MS_Gated_IMix_Res(BTP):
         norms = torch.linalg.matrix_norm(transfer, keepdim=True)
         transfer = transfer / norms
 
-        # Multistage Scaling: Scale off-diagonal of the dynamic part
-        if self.off_diag_scale != 1.0:
-            mask = torch.eye(n_components, device=x.device).unsqueeze(0)
-            transfer = transfer * mask + (transfer * (1 - mask)) * self.off_diag_scale
+        gate = self.gate(transfer)
+        transfer = transfer * gate
 
+        # Multistage Scaling: Scale the dynamic part
+        if self.transfer_weight != 1.0:
+            transfer = transfer * self.transfer_weight
+
+        if self.transfer_weight != 0.0:
+            next_states = x + torch.bmm(transfer, x)
+        else:
+            next_states = x
+
+        # add identity to the output transfer
         identity = torch.eye(n_components, device=x.device).unsqueeze(0).expand(x.size(0), -1, -1)
-        full_transfer = transfer + identity
-        
-        gate = self.gate(full_transfer)
-        full_transfer = full_transfer * gate
-        next_states = torch.bmm(full_transfer, x)
-
-        return next_states, full_transfer
+        transfer = transfer + identity
+        return next_states, transfer
 
 class DECIFRA_MS(DECIFRA):
     """
@@ -92,9 +95,9 @@ class DECIFRA_MS(DECIFRA):
             else:
                 self.current_scale = self.transition_target_weight
         
-        self.BTP.off_diag_scale = self.current_scale
+        self.BTP.transfer_weight = self.current_scale
 
     def handle_batch(self, batch):
         loss, log = super().handle_batch(batch)
-        log["off_diag_scale"] = self.current_scale
+        log["transfer_weight"] = self.current_scale
         return loss, log
