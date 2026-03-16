@@ -147,3 +147,6 @@ _out
 
 jupyter_node*
 jnode-*
+
+scripts/old/
+scripts/tmp*
