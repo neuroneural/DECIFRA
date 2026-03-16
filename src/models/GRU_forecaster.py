@@ -1,5 +1,5 @@
 # pylint: disable=invalid-name, no-member, missing-function-docstring, too-many-branches, too-few-public-methods, unused-argument
-""" LSTM Forecaster baseline (Standard Multivariante LSTM) """
+""" GRU Forecaster baseline (Standard Multivariante GRU) """
 
 import torch
 from torch import nn
@@ -32,9 +32,9 @@ def custom_HPs(cfg: DictConfig, model_cfg_path: str):
     return model_cfg
 
 
-class LSTM_forecaster(BaseModel):
+class GRU_forecaster(BaseModel):
     def __init__(self, model_cfg: DictConfig):
-        super(LSTM_forecaster, self).__init__()
+        super(GRU_forecaster, self).__init__()
 
         self.model_cfg = model_cfg
         self.lr = model_cfg.lr
@@ -44,7 +44,7 @@ class LSTM_forecaster(BaseModel):
         num_layers = model_cfg.rnn.num_layers
         dropout = model_cfg.rnn.dropout
         
-        self.lstm = nn.LSTM(
+        self.gru = nn.GRU(
             input_size=C, 
             hidden_size=H, 
             batch_first=True, 
@@ -66,11 +66,11 @@ class LSTM_forecaster(BaseModel):
         B, T, C = x.shape
         x = x.contiguous()
         
-        self.lstm.flatten_parameters()
-        lstm_out, _ = self.lstm(x)
+        self.gru.flatten_parameters()
+        gru_out, _ = self.gru(x)
         
         # Base prediction from t_0 to T_minus_1
-        hidden_states = lstm_out[:, :-1, :].contiguous()
+        hidden_states = gru_out[:, :-1, :].contiguous()
         pred_curr = self.predictor(hidden_states)
 
         depth = self.model_cfg.loss.prediction_depth
@@ -80,18 +80,16 @@ class LSTM_forecaster(BaseModel):
         T_minus_1 = hidden_states.size(1)
         
         # Recursive forecasting for depth > 1
-        h_curr = lstm_out[:, :-1, :].reshape(B * T_minus_1, H).unsqueeze(0).repeat(num_layers, 1, 1).contiguous()
-        c_curr = torch.zeros_like(h_curr)
-        states_curr = (h_curr, c_curr)
+        h_curr = gru_out[:, :-1, :].reshape(B * T_minus_1, H).unsqueeze(0).repeat(num_layers, 1, 1).contiguous()
 
         for d in range(1, depth):
             # Input for next step is the previous prediction
             x_step = pred_curr.reshape(B * T_minus_1, 1, C)
             
-            self.lstm.flatten_parameters()
-            lstm_out_step, states_curr = self.lstm(x_step, states_curr)
+            self.gru.flatten_parameters()
+            gru_out_step, h_curr = self.gru(x_step, h_curr)
             
-            pred_curr_flat = self.predictor(lstm_out_step.squeeze(1))
+            pred_curr_flat = self.predictor(gru_out_step.squeeze(1))
             pred_curr = pred_curr_flat.reshape(B, T_minus_1, C)
             
             # Truncate states exceeding timeline

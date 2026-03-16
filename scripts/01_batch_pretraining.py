@@ -69,9 +69,18 @@ if __name__ == "__main__":
     if model_name == "DECIFRA":
         from src.models.DECIFRA import DECIFRA as ModelClass, default_HPs
         hp_loader = default_HPs
-    elif model_name == "LSTM":
-        from src.models.LSTM_forecaster import LSTM as ModelClass, default_HPs
-        hp_loader = default_HPs
+    elif model_name == "GRU_forecaster":
+        from src.models.GRU_forecaster import GRU_forecaster as ModelClass, default_HPs, custom_HPs
+        if args.hp_config:
+            hp_loader = lambda cfg: custom_HPs(cfg, args.hp_config)
+        else:
+            hp_loader = default_HPs
+    elif model_name == "LSTM_forecaster":
+        from src.models.LSTM_forecaster import LSTM_forecaster as ModelClass, default_HPs, custom_HPs
+        if args.hp_config:
+            hp_loader = lambda cfg: custom_HPs(cfg, args.hp_config)
+        else:
+            hp_loader = default_HPs
     elif model_name == "DECIFRA_noGate":
         from src.models.DECIFRA import DECIFRA_noGate as ModelClass, default_HPs
         hp_loader = default_HPs

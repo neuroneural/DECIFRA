@@ -60,7 +60,7 @@ class DECIFRA_MS(DECIFRA):
         
         # Initialize scaling parameters
         self.current_stage = 0
-        self.total_stages = model_cfg.get("n_training_stages", 1)
+        self.total_stages = model_cfg.n_training_stages
         self.stage_epochs = 0
         self.current_scale = 1.0
         self.transition_target_weight = model_cfg.transition_target_weight
