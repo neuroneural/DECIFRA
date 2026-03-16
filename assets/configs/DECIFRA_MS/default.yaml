@@ -8,15 +8,23 @@ transition_target_weight: 0.2
 # Model architecture settings inherited from vanilla DECIFRA
 single_embedder: true
 single_GRU: true
-single_predictor: true
 rnn:
   input_embedding_size: 16
   hidden_size: 32
 btp:
   hidden_dim: 32
-lr: 0.001
+single_predictor: true
 loss:
+  threshold: 0.01
+  sp_weight: 1.0
+  forecast_weight: 1.0
   prediction_delay: 0
   prediction_depth: 1
-  forecast_weight: 1.0
-  sp_weight: 1.0
+  weighted_change: false
+lr: 0.001
+load_pretrained: false
+pretrained_path: null
+pretraining: true
+input_size: 53
+output_size: 2
+

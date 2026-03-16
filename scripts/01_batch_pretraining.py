@@ -65,64 +65,32 @@ if __name__ == "__main__":
     print(f"Train data shape: {train_data.shape}, Val data shape: {val_data.shape}")
 
     # --- SET MODEL ---
+    hp_config_path = args.hp_config
 
     if model_name == "DECIFRA":
-        from src.models.DECIFRA import DECIFRA as ModelClass, default_HPs
-        hp_loader = default_HPs
+        from src.models.DECIFRA import DECIFRA as ModelClass, default_HPs, custom_HPs
     elif model_name == "GRU_forecaster":
         from src.models.GRU_forecaster import GRU_forecaster as ModelClass, default_HPs, custom_HPs
-        if args.hp_config:
-            hp_loader = lambda cfg: custom_HPs(cfg, args.hp_config)
-        else:
-            hp_loader = default_HPs
     elif model_name == "LSTM_forecaster":
         from src.models.LSTM_forecaster import LSTM_forecaster as ModelClass, default_HPs, custom_HPs
-        if args.hp_config:
-            hp_loader = lambda cfg: custom_HPs(cfg, args.hp_config)
-        else:
-            hp_loader = default_HPs
     elif model_name == "DECIFRA_noGate":
-        from src.models.DECIFRA import DECIFRA_noGate as ModelClass, default_HPs
-        hp_loader = default_HPs
+        from src.models.DECIFRA import DECIFRA_noGate as ModelClass, default_HPs, custom_HPs
     elif model_name == "DECIFRA_noGate_IMix_Res":
-        from src.models.DECIFRA import DECIFRA_noGate_IMix_Res as ModelClass, default_HPs
-        hp_loader = default_HPs
+        from src.models.DECIFRA import DECIFRA_noGate_IMix_Res as ModelClass, default_HPs, custom_HPs
     elif model_name == "DECIFRA_IMix":
-        from src.models.DECIFRA import DECIFRA_IMix as ModelClass, default_HPs
-        hp_loader = default_HPs
+        from src.models.DECIFRA import DECIFRA_IMix as ModelClass, default_HPs, custom_HPs
     elif model_name == "DECIFRA_IMix_Res":
-        from src.models.DECIFRA import DECIFRA_IMix_Res as ModelClass, default_HPs
-        hp_loader = default_HPs
+        from src.models.DECIFRA import DECIFRA_IMix_Res as ModelClass, default_HPs, custom_HPs
     elif model_name == "DECIFRA_Gated_IMix_Res":
-        from src.models.DECIFRA import DECIFRA_Gated_IMix_Res as ModelClass, default_HPs
-        hp_loader = default_HPs
+        from src.models.DECIFRA import DECIFRA_Gated_IMix_Res as ModelClass, default_HPs, custom_HPs
     elif model_name == "DECIFRA_MS":
-        from src.models.DECIFRA_MS import DECIFRA_MS as ModelClass, default_HPs
-        hp_loader = default_HPs
+        from src.models.DECIFRA_MS import DECIFRA_MS as ModelClass, default_HPs, custom_HPs
     elif model_name == "meanGRU":
         from src.models.meanGRU import meanGRU as ModelClass, default_HPs, custom_HPs
-        
-        if args.hp_config:
-            hp_loader = lambda cfg: custom_HPs(cfg, args.hp_config)
-        else:
-            hp_loader = default_HPs
-
     elif model_name == "meanLSTM":
         from src.models.meanLSTM import meanLSTM as ModelClass, default_HPs, custom_HPs
-        
-        if args.hp_config:
-            hp_loader = lambda cfg: custom_HPs(cfg, args.hp_config)
-        else:
-            hp_loader = default_HPs
-            
     elif model_name == "VAR":
         from src.models.VAR import VAR as ModelClass, default_HPs, custom_HPs
-        
-        if args.hp_config:
-            hp_loader = lambda cfg: custom_HPs(cfg, args.hp_config)
-        else:
-            hp_loader = default_HPs
-        
     else:
         raise ValueError(f"Unknown model name: {model_name}")
 
@@ -137,14 +105,14 @@ if __name__ == "__main__":
             "n_classes": 2,
         }
     }
-        
     cfg = OmegaConf.create(cfg)
     
-    # Init hyperparameters depending on if a custom config was passed
-    if args.hp_config and model_name == "meanGRU":
-        model_cfg = hp_loader(cfg, args.hp_config)
+    # Init hyperparameters
+    if hp_config_path:
+        print(f"Loading custom HPs from: {hp_config_path}")
+        model_cfg = custom_HPs(cfg, hp_config_path)
     else:
-        model_cfg = hp_loader(cfg)
+        model_cfg = default_HPs(cfg)
         
     model = ModelClass(model_cfg)
     # print(OmegaConf.to_yaml(model_cfg))

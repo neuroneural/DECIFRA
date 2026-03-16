@@ -41,6 +41,13 @@ def default_HPs(cfg: DictConfig):
     return OmegaConf.create(model_cfg)
 
 
+def custom_HPs(cfg: DictConfig, model_cfg_path: str):
+    model_cfg = OmegaConf.load(model_cfg_path)
+    model_cfg.input_size = cfg.data_info.feature_size
+    model_cfg.output_size = cfg.data_info.n_classes
+    return model_cfg
+
+
 class DECIFRA(BaseModel):
     def __init__(self, model_cfg: DictConfig):
         super(DECIFRA, self).__init__()

@@ -10,6 +10,12 @@ def default_HPs(cfg: DictConfig):
     model_cfg.transition_target_weight = 0.2
     return model_cfg
 
+
+def custom_HPs(cfg: DictConfig, model_cfg_path: str):
+    from src.models.DECIFRA import custom_HPs as vanilla_custom_HPs
+    model_cfg = vanilla_custom_HPs(cfg, model_cfg_path)
+    return model_cfg
+
 class BTP_MS_Gated_IMix_Res(BTP):
     """
     Multistage-aware BTP variant: Gated + Identity Mixing + Residual Connections.
