@@ -15,7 +15,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, required=True, help="Name of the dataset to use")
     parser.add_argument("--idx", type=int, required=True, help="index of the run")
     parser.add_argument("--postfix", type=str, help="Postfix for save path", default=None)
-    parser.add_argument("--batch_size", type=int, help="Batch size for training (0 for auto-detection)", default=0)
+    parser.add_argument("--batch_size", type=int, help="Batch size for training (0 for auto-detection)", default=64)
     parser.add_argument("--epochs", type=int, help="Number of epochs for training", default=500)
     parser.add_argument("--hp_config", type=str, help="Optional path to a .yaml hyperparameter config file", default=None)
 
