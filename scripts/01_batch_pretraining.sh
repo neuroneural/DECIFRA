@@ -21,11 +21,13 @@ echo $HOSTNAME >&2
 
 # run the actual job
 source /data/users2/ppopov1/miniconda/bin/activate pile
-MODELS=(DECIFRA LSTM DECIFRA_noGate DECIFRA_noGate_IMix_Res DECIFRA_IMix DECIFRA_IMix_Res DECIFRA_Gated_IMix_Res)
-model_idx=$(($SLURM_ARRAY_TASK_ID % ${#MODELS[@]}))
-idx=$(($SLURM_ARRAY_TASK_ID / ${#MODELS[@]}))
-model=${MODELS[$model_idx]}
+# MODELS=(DECIFRA LSTM DECIFRA_noGate DECIFRA_noGate_IMix_Res DECIFRA_IMix DECIFRA_IMix_Res DECIFRA_Gated_IMix_Res)
+# model_idx=$(($SLURM_ARRAY_TASK_ID % ${#MODELS[@]}))
+# idx=$(($SLURM_ARRAY_TASK_ID / ${#MODELS[@]}))
+# model=${MODELS[$model_idx]}
+model='DECIFRA'
 dataset="ukb"
+idx=$SLURM_ARRAY_TASK_ID
 
 PYTHONPATH=. python scripts/01_batch_pretraining.py --idx $idx --model $model --dataset $dataset
 
