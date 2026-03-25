@@ -11,9 +11,9 @@
 #SBATCH -e ./_error/error_exp%A_%a.err  
 #SBATCH -o ./_out/out_exp%A_%a.out    
 #SBATCH -A psy53c17     
-#SBATCH --array=0-59
+#SBATCH --array=0-79
 
-# 6 configs * 10 runs each = 60 tasks. Indices 0 to 59
+# 8 configs * 10 runs each = 80 tasks. Indices 0 to 79
 
 sleep 10s
 
@@ -23,12 +23,14 @@ echo $HOSTNAME >&2
 source /data/users2/ppopov1/miniconda/bin/activate pile
 
 CONFIGS=(
-    "assets/configs/meanGRU/all_shared.yaml"
-    "assets/configs/meanGRU/all_independent.yaml"
-    "assets/configs/meanGRU/shared_features_independent_dynamics.yaml"
-    "assets/configs/meanGRU/independent_features_shared_dynamics.yaml"
-    "assets/configs/meanGRU/all_shared_large.yaml"
-    "assets/configs/meanGRU/independent_features_shared_dynamics_large.yaml"
+    "VAR|assets/configs/VAR/lag_1_full.yaml"
+    "VAR|assets/configs/VAR/lag_20_full.yaml"
+    "meanGRU|assets/configs/meanGRU/all_shared.yaml"
+    "meanGRU|assets/configs/meanGRU/all_independent.yaml"
+    "meanLSTM|assets/configs/meanGRU/all_shared.yaml"
+    "meanLSTM|assets/configs/meanGRU/all_independent.yaml"
+    "GRU_forecaster|assets/configs/GRU_forecaster/default.yaml"
+    "LSTM_forecaster|assets/configs/LSTM_forecaster/default.yaml"
 )
 
 # Using modulo logic
@@ -36,13 +38,15 @@ config_idx=$(($SLURM_ARRAY_TASK_ID % ${#CONFIGS[@]}))
 # Integer division groups into subsequent trials 
 idx=$(($SLURM_ARRAY_TASK_ID / ${#CONFIGS[@]}))  
 
-selection=${CONFIGS[$config_idx]}
+# Split model and config path
+IFS='|' read -r model selection <<< "${CONFIGS[$config_idx]}"
+
 dataset="ukb_exp"
 
 # Strip the path to find a nice human-readable descriptor to name the folders
 config_basename=$(basename $selection .yaml)
-echo "Running Pretrain meanGRU Config: $config_basename at Run Index: $idx on $dataset"
+echo "Running Pretrain Model: $model Config: $config_basename at Run Index: $idx on $dataset"
 
-PYTHONPATH=. python scripts/01_batch_pretraining.py --idx $idx --model meanGRU --dataset $dataset --hp_config $selection --postfix $config_basename
+PYTHONPATH=. python scripts/01_batch_pretraining.py --idx $idx --model $model --dataset $dataset --hp_config $selection --postfix $config_basename
 
 sleep 30s

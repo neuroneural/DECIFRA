@@ -44,7 +44,7 @@ def load_data(
 
 def load_data_hold():
     data, demo = load_data() 
-    holdout_indices = pd.read_csv(f"{ASSETS_ROOT}/data/fbirn_ica/idx_holdout", header=None).values[:, 0]
+    holdout_indices = pd.read_csv(f"{DATA_ROOT}/fbirn_ica/idx_holdout", header=None).values[:, 0]
 
     new_dict = {}
     for key, value in data.items():

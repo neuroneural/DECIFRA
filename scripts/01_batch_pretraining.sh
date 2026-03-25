@@ -4,7 +4,7 @@
 #SBATCH -c 1
 #SBATCH --mem=15g
 #SBATCH -p qTRDGPUH
-#SBATCH --gres=gpu:V100:1           # ask for 1 V100 gpu, needed if you want to try heavier models
+#SBATCH --gres=gpu:A100:1           # ask for 1 A100 gpu, needed if you want to try heavier models
 #SBATCH -t 1600                       # time in minutes
 #SBATCH -J pretrain                   # job name in SLURM
 #SBATCH -D .                        # adding this means that node starting path is the path from which you run this script
