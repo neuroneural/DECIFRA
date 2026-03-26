@@ -11,7 +11,7 @@
 #SBATCH -e ./_error/error_baselines%A_%a.err  
 #SBATCH -o ./_out/out_baselines%A_%a.out    
 #SBATCH -A psy53c17     
-#SBATCH --array=0-49
+#SBATCH --array=0-39
 
 # 5 configs (3 VAR + 2 RNN) * 10 runs each = 50 tasks. Indices 0 to 49
 
@@ -22,10 +22,11 @@ echo $HOSTNAME >&2
 # Run the actual job
 source /data/users2/ppopov1/miniconda/bin/activate pile
 
+    # "VAR:assets/configs/VAR/lag_1_multi.yaml"
+    # "VAR:assets/configs/VAR/lag_1_single.yaml"
 CONFIGS=(
     "VAR:assets/configs/VAR/lag_1_full.yaml"
-    "VAR:assets/configs/VAR/lag_1_multi.yaml"
-    "VAR:assets/configs/VAR/lag_1_single.yaml"
+    "VAR:assets/configs/VAR/lag_20_full.yaml"
     "GRU_forecaster:assets/configs/GRU_forecaster/default.yaml"
     "LSTM_forecaster:assets/configs/LSTM_forecaster/default.yaml"
 )

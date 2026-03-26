@@ -85,6 +85,8 @@ if __name__ == "__main__":
         from src.models.DECIFRA import DECIFRA_Gated_IMix_Res as ModelClass, default_HPs, custom_HPs
     elif model_name == "DECIFRA_MS":
         from src.models.DECIFRA_MS import DECIFRA_MS as ModelClass, default_HPs, custom_HPs
+    elif model_name == "DECIFRA_rand":
+        from src.models.DECIFRA_rand import DECIFRA_rand as ModelClass, default_HPs, custom_HPs
     elif model_name == "meanGRU":
         from src.models.meanGRU import meanGRU as ModelClass, default_HPs, custom_HPs
     elif model_name == "meanLSTM":
