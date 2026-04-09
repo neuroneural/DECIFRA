@@ -278,7 +278,11 @@ def decifra_loss(loss_cfg, pretraining, loss_load, targets=None):
     dumb_forecast_loss = F.mse_loss(dumb_predicted_signal, target_signal)
 
     # Total loss
-    loss = sp_weight * sparse_loss + forecast_weight * forecast_loss
+    loss = 0
+    if sp_weight is not None:
+        loss = loss + sp_weight * sparse_loss
+    if forecast_weight is not None:
+        loss = loss + forecast_weight * forecast_loss
     loss_components = {
         "sp_loss": sparse_loss.item(),
         "forecast_loss": forecast_loss.item(),
