@@ -6,8 +6,8 @@ from src.settings import DATA_ROOT
 
 
 def load_data_exp(
-    file_path: str = "/data/users2/ppopov1/datasets/ukb_ica/ukb_data_exp.npz",
-    demo_path: str = "/data/users2/ppopov1/datasets/ukb_ica/demographics_legend_exp.csv"
+    file_path: str = f"{DATA_ROOT}/ukb_ica/ukb_data_exp.npz",
+    demo_path: str = f"{DATA_ROOT}/ukb_ica/demographics_legend_exp.csv"
     ):
     """
     Loads UKB ICA data (experiment) saved in npz archive.

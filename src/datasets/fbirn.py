@@ -51,6 +51,15 @@ def load_data_hold():
         new_dict[key] = value[holdout_indices]
     return new_dict, demo
 
+def load_data_main():
+    data, demo = load_data() 
+    main_indices = pd.read_csv(f"{DATA_ROOT}/fbirn_ica/idx_main", header=None).values[:, 0]
+
+    new_dict = {}
+    for key, value in data.items():
+        new_dict[key] = value[main_indices]
+    return new_dict, demo
+
 if __name__ == "__main__":
     # Example of how to use the function to load the data
     data_dict, demo_df = load_data()

@@ -44,6 +44,26 @@ def load_data_hold_2205():
     data = data[:, ::3, :]
     return data
 
+def load_data_hold_half():
+    data_dict, _ = load_data_hold()
+    data = data_dict["data"]
+    half_time = data.shape[1] // 2
+    half_data = data[:, :half_time, :]
+    return data, half_data
+
+def load_data_hold_plus_1000():
+    from src.datasets.ukb_exp import load_data_exp
+    
+    # Load holdout data
+    hold_dict, _ = load_data_hold()
+    hold_data = hold_dict["data"]
+    
+    # Load first 1000 of exp data
+    exp_dict, _ = load_data_exp()
+    exp_data = exp_dict["data"][:1000]
+    
+    return hold_data, exp_data
+
 if __name__ == "__main__":
     # Example of how to use the function to load the data
     data_dict, demo_df = load_data_hold()

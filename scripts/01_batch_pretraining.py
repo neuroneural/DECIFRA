@@ -52,6 +52,12 @@ if __name__ == "__main__":
     elif ds_name == "ukb_2205":
         from src.datasets.ukb_hold import load_data_hold_2205 as load_ukb_2205_pretrain
         data = load_ukb_2205_pretrain()
+    elif ds_name == "ukb_half":
+        from src.datasets.ukb_hold import load_data_hold_half
+        _, data = load_data_hold_half()
+    elif ds_name == "ukb_plus_1000":
+        from src.datasets.ukb_hold import load_data_hold_plus_1000
+        data, more_tr_data = load_data_hold_plus_1000()
     elif ds_name == "dummy":
         from src.datasets.dummy import load_dummy_data
         data = load_dummy_data()
@@ -62,6 +68,8 @@ if __name__ == "__main__":
     # prepare train and validation sets
     from sklearn.model_selection import train_test_split
     train_data, val_data = train_test_split(data, test_size=0.2, random_state=42)
+    if ds_name == "ukb_plus_1000":
+        train_data = np.concatenate([train_data, more_tr_data], axis=0)
     print(f"Train data shape: {train_data.shape}, Val data shape: {val_data.shape}")
 
     # --- SET MODEL ---
