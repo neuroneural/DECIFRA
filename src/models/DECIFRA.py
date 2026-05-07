@@ -133,7 +133,7 @@ class DECIFRA(BaseModel):
     def run_recurrent_loop(self, x, h):
         pass
 
-    def forward(self, x): 
+    def forward(self, x, forced_matrices=None): 
         B, T, C = x.shape  # [batch_size, time_length, input_size==self.input_size]
         orig_x = x
 
@@ -160,8 +160,12 @@ class DECIFRA(BaseModel):
 
             h = new_h.reshape(B, C, H) # (B, C, H)
 
-            # Derive transition matrix and mix hidden states
-            h, mixing_matrix = self.BTP(h)
+            if forced_matrices is not None:
+                mixing_matrix = forced_matrices[:, t, :, :]
+                h = torch.bmm(mixing_matrix, h)
+            else:
+                # Derive transition matrix and mix hidden states
+                h, mixing_matrix = self.BTP(h)
 
             # save outputs
             hidden_states.append(h)
