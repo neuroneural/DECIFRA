@@ -17,7 +17,11 @@ def compute_transfer_matrix_saliency(model, x, target_channel, baseline_type='id
     Returns:
         saliency_map: Tensor of shape [B, T, C, C] containing the Integrated Gradients
     """
-    model.eval()
+    # cuDNN RNN backward can only be called in training mode
+    if next(model.parameters()).is_cuda:
+        model.train()
+    else:
+        model.eval()
     
     B, T, C = x.shape
     
