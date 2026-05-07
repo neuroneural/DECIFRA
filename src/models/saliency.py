@@ -8,7 +8,7 @@ def compute_transfer_matrix_saliency(model, x, target_channel, baseline_type='id
     Args:
         model: DECIFRA or DECIFRA_MS instance
         x: Input tensor [B, T, C]
-        target_channel: int, the channel whose forecast error we want to explain
+        target_channel: int, the channel whose forecast error we want to explain. If -1, explains error over all channels.
         baseline_type: 'identity' or 'zero'
         steps: Number of interpolation steps for IG
         delay: Prediction delay used in the loss calculation
@@ -38,7 +38,10 @@ def compute_transfer_matrix_saliency(model, x, target_channel, baseline_type='id
     integrated_gradients = torch.zeros_like(matrices_true)
     
     # Target signal is fixed
-    target_signal = x[:, 1+delay:, target_channel]
+    if target_channel == -1:
+        target_signal = x[:, 1+delay:, :]
+    else:
+        target_signal = x[:, 1+delay:, target_channel]
     
     # Loop over alpha steps
     # According to standard IG, alpha goes from 1/steps to 1
@@ -53,7 +56,10 @@ def compute_transfer_matrix_saliency(model, x, target_channel, baseline_type='id
         # Run modified forward pass
         _, loss_load_alpha = model(x, forced_matrices=matrices_alpha)
         
-        predicted_signal = loss_load_alpha["predicted"][:, delay:, target_channel]
+        if target_channel == -1:
+            predicted_signal = loss_load_alpha["predicted"][:, delay:, :]
+        else:
+            predicted_signal = loss_load_alpha["predicted"][:, delay:, target_channel]
         
         # Compute error metric
         if metric == "mse":

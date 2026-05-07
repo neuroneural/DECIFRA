@@ -41,7 +41,7 @@ model = DECIFRA_MS(cfg)
 B, T, C = 2, 10, 5 # batch size 2, 10 time points, 5 channels
 x = torch.randn(B, T, C)
 
-target_channel = 2
+target_channel = -1
 
 # Compute saliency
 saliency_map = compute_transfer_matrix_saliency(
