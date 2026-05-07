@@ -82,4 +82,4 @@ def compute_transfer_matrix_saliency(model, x, target_channel, baseline_type='id
     # Multiply by (x - x')
     saliency_map = (matrices_true - matrices_base) * integrated_gradients
     
-    return saliency_map, integrated_gradients
+    return saliency_map, integrated_gradients, matrices_true
