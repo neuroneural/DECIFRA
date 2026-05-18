@@ -87,3 +87,83 @@ def compute_transfer_matrix_saliency(model, x, target_channel, baseline_type='id
     saliency_map = (matrices_true - matrices_base) * integrated_gradients
     
     return saliency_map, integrated_gradients, matrices_true
+
+def compute_isolated_transfer_matrix_saliency(model, x, target_channel, baseline_type='identity', steps=50, delay=0, metric="mse"):
+    """
+    Computes Internal Integrated Gradients for the transfer matrices of DECIFRA_IG, 
+    isolating the matrix attribution by severing the recurrent gradient chain with forced_h.
+    
+    Args:
+        model: DECIFRA_IG instance
+        x: Input tensor [B, T, C]
+        target_channel: int, the channel whose forecast error we want to explain. If -1, explains error over all channels.
+        baseline_type: 'identity' or 'zero'
+        steps: Number of interpolation steps for IG
+        delay: Prediction delay used in the loss calculation
+        metric: 'mse', 'mae', or 'forecast'
+        
+    Returns:
+        saliency_map: Tensor of shape [B, T, C, C] containing the Integrated Gradients
+    """
+    if next(model.parameters()).is_cuda:
+        model.train()
+    else:
+        model.eval()
+    
+    B, T, C = x.shape
+    
+    # 1. Run standard forward pass to get actual transfer matrices AND true h_pre_btp
+    with torch.no_grad():
+        _, loss_load_true = model(x)
+        matrices_true = loss_load_true["matrices"] # [B, T, C, C]
+        h_pre_btp_true = loss_load_true.get("h_pre_btp")
+        if h_pre_btp_true is None:
+            raise ValueError("Model did not return h_pre_btp. Ensure you are using the DECIFRA_IG class.")
+        
+    # 2. Define baseline
+    if baseline_type == 'identity':
+        matrices_base = torch.eye(C, device=x.device).unsqueeze(0).unsqueeze(0).expand(B, T, C, C)
+    elif baseline_type == 'zero':
+        matrices_base = torch.zeros_like(matrices_true)
+    else:
+        raise ValueError(f"Unknown baseline_type: {baseline_type}")
+        
+    # 3. Compute gradients over interpolated path
+    integrated_gradients = torch.zeros_like(matrices_true)
+    
+    if target_channel == -1:
+        target_signal = x[:, 1+delay:, :]
+    else:
+        target_signal = x[:, 1+delay:, target_channel]
+    
+    alphas = torch.linspace(1.0 / steps, 1.0, steps, device=x.device)
+    
+    for alpha in alphas:
+        # Interpolate matrices
+        matrices_alpha = matrices_base + alpha * (matrices_true - matrices_base)
+        matrices_alpha.requires_grad_(True)
+        
+        # Run modified forward pass injecting BOTH forced_matrices and forced_h_pre_btp
+        _, loss_load_alpha = model(x, forced_matrices=matrices_alpha, forced_h_pre_btp=h_pre_btp_true)
+        
+        if target_channel == -1:
+            predicted_signal = loss_load_alpha["predicted"][:, delay:, :]
+        else:
+            predicted_signal = loss_load_alpha["predicted"][:, delay:, target_channel]
+        
+        if metric == "mse":
+            error = F.mse_loss(predicted_signal, target_signal, reduction='sum')
+        elif metric == "mae":
+            error = F.l1_loss(predicted_signal, target_signal, reduction='sum')
+        elif metric == "forecast":
+            error = predicted_signal.sum()
+        else:
+            raise ValueError(f"Unknown metric: {metric}")
+            
+        grad = torch.autograd.grad(error, matrices_alpha)[0] # [B, T, C, C]
+        integrated_gradients += grad
+        
+    integrated_gradients /= steps
+    saliency_map = (matrices_true - matrices_base) * integrated_gradients
+    
+    return saliency_map, integrated_gradients, matrices_true
