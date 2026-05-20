@@ -46,9 +46,15 @@ if __name__ == "__main__":
             demo_path=os.path.join(DATA_ROOT, "ukb_ica/demographics_legend_exp.csv"),
         )
         data = UKB_DATADICT['data']
-    elif ds_name == "ukb_aal":
-        from src.datasets.ukb_hold import load_data_hold as load_ukb_aal_pretrain
-        data = load_ukb_aal_pretrain()
+    elif ds_name == "ukb_aal_hold":
+        from src.datasets.ukb_aal_hold import load_data_hold as load_ukb_aal_hold_pretrain
+        data = load_ukb_aal_hold_pretrain()
+    elif ds_name == "ukb_aal_2000":
+        from src.datasets.ukb_aal_2000 import load_data_2000 as load_ukb_aal_2000_pretrain
+        data = load_ukb_aal_2000_pretrain()
+    elif ds_name == "ukb_aal_4000":
+        from src.datasets.ukb_aal_4000 import load_data_4000 as load_ukb_aal_4000_pretrain
+        data = load_ukb_aal_4000_pretrain()
     elif ds_name == "ukb_2205":
         from src.datasets.ukb_hold import load_data_hold_2205 as load_ukb_2205_pretrain
         data = load_ukb_2205_pretrain()
