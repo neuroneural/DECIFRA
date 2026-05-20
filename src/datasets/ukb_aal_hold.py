@@ -1,11 +1,9 @@
-""" UKB ICA dataset loading script (1196 subject holdout data) """
+""" UKB AAL dataset loading script (holdout data) """
 
+import os
 import numpy as np
-import pandas as pd
 from src.settings import DATA_ROOT
 
 def load_data_hold():
-
-    data = np.load("/data/users2/ppopov1/datasets/ukb_aal/data.npy")
-
+    data = np.load(os.path.join(DATA_ROOT, "ukb_aal", "data_holdout.npy"))
     return data
