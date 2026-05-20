@@ -25,9 +25,9 @@ class BTP_MS_Gated_IMix_Res(BTP):
         super(BTP_MS_Gated_IMix_Res, self).__init__(input_dim, hidden_dim, n_components)
         self.transfer_weight = 1.0
 
-    def forward(self, x):
-        n_components = x.size(1)
 
+
+    def forward(self, x):
         queries = self.query(x)
         keys = self.key(x)
 
@@ -47,9 +47,7 @@ class BTP_MS_Gated_IMix_Res(BTP):
         else:
             next_states = x
 
-        # add identity to the output transfer
-        identity = torch.eye(n_components, device=x.device).unsqueeze(0).expand(x.size(0), -1, -1)
-        transfer = transfer + identity
+        # Return next_states and transfer (without identity to save memory inside the loop)
         return next_states, transfer
 
 class DECIFRA_MS(DECIFRA):
@@ -73,6 +71,15 @@ class DECIFRA_MS(DECIFRA):
         self.stage_epochs = 0
         self.current_scale = 1.0
         self.transition_target_weight = model_cfg.transition_target_weight
+
+    def forward(self, x):
+        logits, loss_load = super().forward(x)
+        # Vectorized addition of identity matrix to transfer matrices to optimize memory
+        matrices = loss_load["matrices"]  # (B, T, C, C)
+        C = matrices.size(-1)
+        identity = torch.eye(C, device=matrices.device).view(1, 1, C, C)
+        loss_load["matrices"] = matrices + identity
+        return logits, loss_load
 
     def set_stage(self, stage_idx, num_epochs):
         """Called by StagePreTrainer when a new stage begins."""
