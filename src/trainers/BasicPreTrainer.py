@@ -22,9 +22,11 @@ class BasicPreTrainer:
         epochs: int = 100,
         device: str = None,
         save_path: str = None,
+        resume: bool = False,
     ) -> None:
         
         self.cfg = cfg
+        self.resume = resume
         self.model_cfg = model_cfg
 
         self.model = model
@@ -85,7 +87,7 @@ class BasicPreTrainer:
 
     def run(self):
         # if save path already exists and not empty, back up the contents in a timestamped folder
-        if os.path.exists(self.SAVE_PATH) and os.listdir(self.SAVE_PATH):
+        if not self.resume and os.path.exists(self.SAVE_PATH) and os.listdir(self.SAVE_PATH):
             utc_string = time.strftime("%m%d-%H%M%S", time.gmtime())
             backup_path = f"{self.SAVE_PATH}_{utc_string}"
             print(f"Save path {self.SAVE_PATH} already exists and is not empty. Backing up contents to {backup_path}")
@@ -108,14 +110,44 @@ class BasicPreTrainer:
         ### Training loop
         train_logs = []
         start = time.time()
-        log_path = None # used as a flag too
-        torch.save(self.model.state_dict(), os.path.join(checkpoints_path, "model_init.pt"))
-        for epoch in range(self.epochs):
+        
+        log_path = os.path.join(self.SAVE_PATH, "train_logs.csv")
+        write_header = not os.path.exists(log_path) or os.stat(log_path).st_size == 0
+        start_epoch = 0
+        
+        if self.resume and os.path.exists(log_path):
+            existing_logs = pd.read_csv(log_path)
+            if not existing_logs.empty:
+                train_logs = existing_logs.to_dict('records')
+                last_epoch = int(existing_logs.iloc[-1]['epoch'])
+                start_epoch = last_epoch + 1
+                
+                print(f"Resuming from epoch {start_epoch} (found logs up to epoch {last_epoch})")
+                
+                # Load model
+                model_ckpt = os.path.join(checkpoints_path, f"model_{last_epoch}.pt")
+                if os.path.exists(model_ckpt):
+                    self.model.load_state_dict(torch.load(model_ckpt))
+                    print(f"Loaded model state from {model_ckpt}")
+                
+                # Load optimizer
+                opt_ckpt = os.path.join(checkpoints_path, "optimizer_last.pt")
+                if os.path.exists(opt_ckpt):
+                    self.optimizer.load_state_dict(torch.load(opt_ckpt))
+                    print(f"Loaded optimizer state from {opt_ckpt}")
+                else:
+                    print(f"No optimizer state found at {opt_ckpt}. Proceeding with fresh optimizer (loss may slightly spike).")
+
+        if start_epoch == 0:
+            torch.save(self.model.state_dict(), os.path.join(checkpoints_path, "model_init.pt"))
+            
+        for epoch in range(start_epoch, self.epochs):
             print(f"Epoch {epoch+1}/{self.epochs} | Elapsed time: {time.time()-start:.0f}s")
             train_log = self._epoch(self.train_loader, train=True, epoch_idx=epoch)
             val_log = self._epoch(self.val_loader, train=False, epoch_idx=epoch)
 
             torch.save(self.model.state_dict(), os.path.join(checkpoints_path, f"model_{epoch}.pt"))
+            torch.save(self.optimizer.state_dict(), os.path.join(checkpoints_path, "optimizer_last.pt"))
 
             # handle logs
             epoch_log = {"model": self.model.__class__.__name__, "epoch": epoch}
@@ -125,11 +157,8 @@ class BasicPreTrainer:
 
             # save epoch log to csv
             df = pd.DataFrame([epoch_log])
-            if log_path is None:
-                log_path = os.path.join(self.SAVE_PATH, "train_logs.csv")
-                df.to_csv(log_path, mode='a', index=False, header=True)
-            else:
-                df.to_csv(log_path, mode='a', index=False, header=False)
+            df.to_csv(log_path, mode='a', index=False, header=write_header)
+            write_header = False
 
 
         # find best epoch
