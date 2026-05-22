@@ -18,6 +18,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, help="Batch size for training (0 for auto-detection)", default=64)
     parser.add_argument("--epochs", type=int, help="Number of epochs for training", default=500)
     parser.add_argument("--hp_config", type=str, help="Optional path to a .yaml hyperparameter config file", default=None)
+    parser.add_argument("--resume", action="store_true", help="Resume from last completed epoch if directory exists")
 
     args = parser.parse_args()
     model_name, ds_name = args.model, args.dataset
@@ -173,6 +174,7 @@ if __name__ == "__main__":
             val_loader=val_dataloader,
             stage_epochs_list=stage_epochs_list,
             save_path=SAVE_PATH,
+            resume=args.resume,
         )
     else:
         trainer = BasicPreTrainer(
@@ -184,6 +186,7 @@ if __name__ == "__main__":
             val_loader=val_dataloader,
             epochs=epochs,
             save_path=SAVE_PATH,
+            resume=args.resume,
         )
 
     train_logs = trainer.run()
