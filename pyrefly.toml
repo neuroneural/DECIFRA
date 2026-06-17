@@ -1,0 +1,8 @@
+project-includes = [
+    "**/*.py*",
+    "**/*.ipynb",
+]
+
+extra-paths = ["scripts", "scripts/asset_scripts/scripts"]
+
+conda-environment = "pile"

@@ -5,7 +5,7 @@
 #SBATCH --mem=40g
 #SBATCH -p qTRDGPUH
 #SBATCH --gres=gpu:A100:1           
-#SBATCH -t 1600                     
+#SBATCH -t 4600                     
 #SBATCH -J pretrain_aal_2000_4000                   
 #SBATCH -D .                        
 #SBATCH -e ./_error/error_aal_2000_4000_%A_%a.err  

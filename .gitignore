@@ -149,5 +149,5 @@ jupyter_node*
 jnode-*
 
 scripts/old/
-scripts/tmp/
-scripts/asset_scripts/
+scripts/tmp*
+scripts/asset_scripts
