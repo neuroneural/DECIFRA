@@ -21,11 +21,12 @@ echo $HOSTNAME >&2
 
 # run the actual job
 source /data/users2/ppopov1/miniconda/bin/activate pile
-# MODELS=(DECIFRA LSTM DECIFRA_noGate DECIFRA_noGate_IMix_Res DECIFRA_IMix DECIFRA_IMix_Res DECIFRA_Gated_IMix_Res)
-# model_idx=$(($SLURM_ARRAY_TASK_ID % ${#MODELS[@]}))
-# idx=$(($SLURM_ARRAY_TASK_ID / ${#MODELS[@]}))
-# model=${MODELS[$model_idx]}
-model='DECIFRA/default'
+# Vanilla DECIFRA variants share one config; select the class via model.variant
+# VARIANTS=(default noGate noGate_IMix_Res IMix IMix_Res Gated_IMix_Res)
+# variant_idx=$(($SLURM_ARRAY_TASK_ID % ${#VARIANTS[@]}))
+# idx=$(($SLURM_ARRAY_TASK_ID / ${#VARIANTS[@]}))
+# variant=${VARIANTS[$variant_idx]}  # then: model=DECIFRA model.variant=$variant
+model='DECIFRA'
 dataset="ukb"
 idx=$SLURM_ARRAY_TASK_ID
 

@@ -10,20 +10,24 @@ All helpers take the full composed ``cfg`` and derive what they need from it:
 
 Models
 ------
-A model class ``Foo`` is imported from ``src.models.<module>`` where ``module``
-defaults to the class name (``cfg.model.module`` overrides it, so several classes
-can share one module file, e.g. the DECIFRA_* variants in ``src.models.DECIFRA``).
+A model class is imported from ``src.models.<module>``. The class is chosen by:
+  - ``variant`` (when set and != "default"): class = ``f"{module}_{variant}"``.
+    This lets architectural variants that share one config (and one module file)
+    live in a single config file, e.g. ``module: DECIFRA`` + ``variant: IMix`` ->
+    class ``DECIFRA_IMix`` in ``src.models.DECIFRA``.
+  - otherwise the explicit ``model_name`` is used (defaulting to ``module``).
 HPs are canonical in the yaml; ``default_HPs``/``custom_HPs`` are no longer used.
 
 A model config carries shared architecture keys plus optional task blocks::
 
-    model_name: DECIFRA_MS
-    module: DECIFRA_MS
+    module: DECIFRA
+    variant: default           # default | noGate | IMix | IMix_Res | ...
     rnn: {...}                 # shared architecture
     pretrain:  {pretraining: true,  loss: {...}}
     finetune:  {pretraining: false, loss: {...}, load_pretrained: true}
 
-``build_model_cfg`` flattens the block named by ``cfg.mode`` onto the shared keys.
+``build_model_cfg`` flattens the block named by ``cfg.mode`` onto the shared keys
+and stamps the resolved ``model_name``/``module`` so the saved config self-describes.
 
 Datasets
 --------
@@ -40,6 +44,25 @@ from omegaconf import OmegaConf
 _TASK_BLOCKS = ("pretrain", "finetune")
 
 
+def _class_and_module(model_group):
+    """
+    Resolve ``(class_name, module)`` from a model group config.
+
+    A ``variant`` (set and != "default") selects the class as
+    ``f"{module}_{variant}"`` so several classes can share one config file.
+    Otherwise the explicit ``model_name`` is used, defaulting to ``module``.
+    """
+    module = model_group.get("module") or model_group.get("model_name")
+    if module is None:
+        raise ValueError("model config must define 'module' (or 'model_name').")
+    variant = model_group.get("variant", None)
+    if variant is not None and str(variant) != "default":
+        class_name = f"{module}_{variant}"
+    else:
+        class_name = model_group.get("model_name") or module
+    return class_name, module
+
+
 def build_model_cfg(cfg):
     """
     Assemble the effective, flat model config the model class consumes.
@@ -52,6 +75,12 @@ def build_model_cfg(cfg):
     block = cfg.model.get(mode, {}) or {}
     model_cfg = OmegaConf.merge(OmegaConf.create(shared), block)
 
+    # Stamp the resolved class/module so the saved config self-describes how to
+    # rebuild the model (used by downstream fine-tuning).
+    class_name, module = _class_and_module(cfg.model)
+    model_cfg.model_name = class_name
+    model_cfg.module = module
+
     # Runtime sizes are known only after the data is loaded.
     model_cfg.input_size = cfg.data_info.feature_size
     # output_size is only needed by the classifier head (fine-tuning); pretraining
@@ -63,9 +92,8 @@ def build_model_cfg(cfg):
 
 
 def resolve_model(cfg):
-    """Import and return the model class named by ``cfg.model.model_name``."""
-    model_name = cfg.model.model_name
-    module = cfg.model.get("module") or model_name
+    """Import and return the model class selected by ``cfg.model``."""
+    model_name, module = _class_and_module(cfg.model)
     try:
         mod = import_module(f"src.models.{module}")
     except ModuleNotFoundError as e:

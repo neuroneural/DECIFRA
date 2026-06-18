@@ -22,9 +22,8 @@ echo $HOSTNAME >&2
 # run the actual job
 source /data/users2/ppopov1/miniconda/bin/activate pile
 idx=$SLURM_ARRAY_TASK_ID
-model="DECIFRA_IMix"
 dataset="ukb"
 
-PYTHONPATH=. python scripts/01_pretraining.py idx=$idx model=$model/default dataset=$dataset
+PYTHONPATH=. python scripts/01_pretraining.py idx=$idx model=DECIFRA model.variant=IMix dataset=$dataset
 
 sleep 30s

@@ -29,14 +29,21 @@ def main(cfg):
     model_choice = choices["model"]      # e.g. "DECIFRA_MS/default"
     dataset_choice = choices["dataset"]  # e.g. "ukb"
 
+    # Architectural variants share one config file (e.g. model=DECIFRA
+    # model.variant=IMix); fold the variant into the log dir name so runs stay
+    # distinct.
+    variant = cfg.model.get("variant", None)
     tag = model_choice.replace("/", "-")
+    if variant is not None and str(variant) != "default":
+        tag += f"-{variant}"
     save_name = f"1_pretrain-{dataset_choice}-{tag}"
     if cfg.get("postfix"):
         save_name += f"-{cfg.postfix}"
     save_path = os.path.join(LOGS_ROOT, save_name, f"{int(cfg.idx):02d}")
 
-    print(f"Running {cfg.model.model_name} (module src.models.{cfg.model.get('module') or cfg.model.model_name}) "
-          f"on {dataset_choice} (config {model_choice}, idx {cfg.idx})")
+    print(f"Running config {model_choice}"
+          + (f" (variant={variant})" if variant is not None and str(variant) != "default" else "")
+          + f" on {dataset_choice} (idx {cfg.idx})")
     print(f"Saving to: {save_path}")
 
     epochs = int(cfg.train.epochs)

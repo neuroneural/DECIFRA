@@ -1,0 +1,31 @@
+# Vanilla DECIFRA family. All variants share this config and live in
+# src/models/DECIFRA.py; `variant` selects the BTP/class:
+#   default          -> DECIFRA            (gated, mixing)
+#   noGate           -> DECIFRA_noGate
+#   IMix             -> DECIFRA_IMix        (identity mixing)
+#   IMix_Res         -> DECIFRA_IMix_Res
+#   noGate_IMix_Res  -> DECIFRA_noGate_IMix_Res
+#   Gated_IMix_Res   -> DECIFRA_Gated_IMix_Res
+# Override on the CLI, e.g.:  model=DECIFRA model.variant=IMix
+module: DECIFRA
+variant: default
+
+single_embedder: true
+single_GRU: true
+rnn:
+  input_embedding_size: 16
+  hidden_size: 32
+btp:
+  hidden_dim: 32
+single_predictor: true
+lr: 0.001
+
+pretrain:
+  pretraining: true
+  loss:
+    threshold: 0.01
+    sp_weight: 1.0
+    forecast_weight: 1.0
+    prediction_delay: 0
+    prediction_depth: 1
+    weighted_change: false

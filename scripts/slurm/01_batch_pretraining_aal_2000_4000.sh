@@ -39,19 +39,15 @@ variant_idx=$(($local_task_id % 2))
 idx=$(($local_task_id / 2))
 
 if [ $variant_idx -eq 0 ]; then
-    model="DECIFRA"
-    hp_config_arg=""
-    postfix="vanilla"
+    model_choice="DECIFRA"            # vanilla DECIFRA (single config file)
 else
-    model="DECIFRA_MS"
-    hp_config_arg="--hp_config assets/configs/DECIFRA_MS/default.yaml"
-    postfix="default"
+    model_choice="DECIFRA_MS/default" # multistage variant (config folder)
 fi
 
 # Run pretraining
-echo "Running Pretrain for $model on $dataset at Run Index: $idx (postfix: $postfix)"
+echo "Running Pretrain for $model_choice on $dataset at Run Index: $idx"
 PYTHONPATH=. python scripts/01_pretraining.py \
-    idx=$idx model=$model/default dataset=$dataset \
+    idx=$idx model=$model_choice dataset=$dataset \
     train.batch_size=32 resume=true
 
 sleep 30s
