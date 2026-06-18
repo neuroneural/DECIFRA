@@ -1,6 +1,7 @@
 # Migrated from assets/configs/DECIFRA_MS_sens/default.yaml
 model_name: DECIFRA_MS
 module: DECIFRA_MS
+variant: default        # default -> DECIFRA_MS; rand -> DECIFRA_MS_rand
 n_training_stages: 2
 eps_stage_ratios:
 - 0.3

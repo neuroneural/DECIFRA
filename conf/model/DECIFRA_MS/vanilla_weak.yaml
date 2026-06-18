@@ -1,6 +1,7 @@
 # Migrated from assets/configs/DECIFRA_MS/vanilla_weak.yaml
 model_name: DECIFRA_MS
 module: DECIFRA_MS
+variant: default        # default -> DECIFRA_MS; rand -> DECIFRA_MS_rand
 n_training_stages: 1
 eps_stage_ratios:
 - 1.0

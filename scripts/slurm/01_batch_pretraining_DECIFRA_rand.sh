@@ -38,9 +38,9 @@ dataset="ukb"
 # Strip the path to find a nice human-readable descriptor to name the folders (e.g., default)
 config_basename=$(basename $hp_config .yaml)
 
-echo "Running Pretrain DECIFRA_rand Config: $config_basename at Run Index: $idx"
+echo "Running Pretrain DECIFRA_MS_rand Config: $config_basename at Run Index: $idx"
 
 PYTHONPATH=. python scripts/01_pretraining.py \
-    idx=$idx model=DECIFRA_rand/$config_basename dataset=$dataset
+    idx=$idx model=DECIFRA_MS/$config_basename model.variant=rand dataset=$dataset
 
 sleep 30s
