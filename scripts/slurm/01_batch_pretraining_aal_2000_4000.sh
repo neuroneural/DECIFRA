@@ -50,8 +50,8 @@ fi
 
 # Run pretraining
 echo "Running Pretrain for $model on $dataset at Run Index: $idx (postfix: $postfix)"
-PYTHONPATH=. python scripts/01_batch_pretraining.py \
-    --idx $idx --model $model --dataset $dataset $hp_config_arg \
-    --postfix $postfix --batch_size 32 --resume
+PYTHONPATH=. python scripts/01_pretraining.py \
+    idx=$idx model=$model/default dataset=$dataset \
+    train.batch_size=32 resume=true
 
 sleep 30s

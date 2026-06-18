@@ -2,6 +2,7 @@ numpy
 pandas
 torch
 omegaconf
+hydra-core
 lightning
 scikit-learn
 matplotlib

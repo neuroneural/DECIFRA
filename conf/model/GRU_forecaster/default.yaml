@@ -1,0 +1,12 @@
+# Migrated from assets/configs/GRU_forecaster/default.yaml
+model_name: GRU_forecaster
+module: GRU_forecaster
+rnn:
+  hidden_size: 210
+  num_layers: 2
+  dropout: 0.5
+loss:
+  prediction_delay: 0
+  prediction_depth: 1
+  forecast_weight: 1.0
+lr: 0.0005

@@ -35,8 +35,7 @@ hp_config="assets/configs/DECIFRA_MS/default.yaml"
 
 echo "Running Pretrain DECIFRA_MS on Dataset: $dataset at Run Index: $idx"
 
-PYTHONPATH=. python scripts/01_batch_pretraining.py \
-    --idx $idx --model DECIFRA_MS --dataset $dataset --hp_config $hp_config \
-    --postfix default
+PYTHONPATH=. python scripts/01_pretraining.py \
+    idx=$idx model=DECIFRA_MS/default dataset=$dataset
 
 sleep 30s

@@ -1,6 +1,12 @@
 # Default Multistage Configuration
 # Stage 1: Independent channels
 # Stage 2: Linear unfreezing of cross-channel interactions
+
+# Model identity: class to instantiate + module it lives in (see src.registry).
+# model_name is also used for log directory naming.
+model_name: DECIFRA_MS
+module: DECIFRA_MS
+
 n_training_stages: 2
 eps_stage_ratios: [0.3, 0.7]
 transition_target_weight: 0.2

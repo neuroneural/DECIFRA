@@ -1,0 +1,22 @@
+# Root config for scripts/01_pretraining.py
+# Usage: python scripts/01_pretraining.py model=DECIFRA_MS/default dataset=ukb idx=0
+defaults:
+  - model: ???
+  - dataset: ???
+  - _self_
+
+mode: pretrain          # selects the model's 'pretrain' task block (see src.registry)
+
+idx: 0
+postfix: null
+resume: false
+
+train:
+  epochs: 500
+  batch_size: 64        # 0 => auto-detect the largest batch that fits
+
+hydra:
+  run:
+    dir: ./assets/utility_logs
+  job:
+    chdir: false

@@ -47,6 +47,6 @@ dataset="ukb_exp"
 config_basename=$(basename $selection .yaml)
 echo "Running Pretrain Model: $model Config: $config_basename at Run Index: $idx on $dataset"
 
-PYTHONPATH=. python scripts/01_batch_pretraining.py --idx $idx --model $model --dataset $dataset --hp_config $selection --postfix $config_basename
+PYTHONPATH=. python scripts/01_pretraining.py idx=$idx model=$model/$config_basename dataset=$dataset
 
 sleep 30s

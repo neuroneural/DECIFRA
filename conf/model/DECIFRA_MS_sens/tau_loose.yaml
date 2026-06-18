@@ -1,0 +1,26 @@
+# Migrated from assets/configs/DECIFRA_MS_sens/tau_loose.yaml
+model_name: DECIFRA_MS
+module: DECIFRA_MS
+n_training_stages: 2
+eps_stage_ratios:
+- 0.3
+- 0.7
+transition_target_weight: 0.2
+single_embedder: true
+single_GRU: true
+rnn:
+  input_embedding_size: 16
+  hidden_size: 32
+btp:
+  hidden_dim: 32
+single_predictor: true
+lr: 0.001
+pretrain:
+  pretraining: true
+  loss:
+    threshold: 0.05
+    sp_weight: 1.0
+    forecast_weight: 1.0
+    prediction_delay: 0
+    prediction_depth: 1
+    weighted_change: false

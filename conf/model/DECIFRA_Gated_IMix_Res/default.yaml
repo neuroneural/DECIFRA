@@ -1,0 +1,21 @@
+# Migrated from assets/configs/DECIFRA_Gated_IMix_Res/default.yaml
+model_name: DECIFRA_Gated_IMix_Res
+module: DECIFRA
+single_embedder: true
+single_GRU: true
+rnn:
+  input_embedding_size: 16
+  hidden_size: 32
+btp:
+  hidden_dim: 32
+single_predictor: true
+lr: 0.001
+pretrain:
+  pretraining: true
+  loss:
+    threshold: 0.01
+    sp_weight: 1.0
+    forecast_weight: 1.0
+    prediction_delay: 0
+    prediction_depth: 1
+    weighted_change: false

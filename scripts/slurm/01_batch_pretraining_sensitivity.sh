@@ -55,17 +55,14 @@ idx=$(($SLURM_ARRAY_TASK_ID / (${#VARIANTS[@]} * ${#MODELS[@]})))
 variant=${VARIANTS[$variant_idx]}
 model=${MODELS[$model_idx]}
 config_dir=${CONFIG_DIRS[$model_idx]}
-hp_config="$config_dir/$variant.yaml"
+model_group=$(basename $config_dir)        # e.g. DECIFRA_sens / DECIFRA_MS_sens
 
-postfix="sens_${variant}"
 dataset="ukb"
 
-echo "Sensitivity sweep: model=$model variant=$variant seed_idx=$idx"
-echo "Config: $hp_config"
+echo "Sensitivity sweep: model=$model group=$model_group variant=$variant seed_idx=$idx"
 
-PYTHONPATH=. python scripts/01_batch_pretraining.py \
-    --idx $idx --model $model --dataset $dataset \
-    --hp_config $hp_config \
-    --postfix $postfix --resume
+PYTHONPATH=. python scripts/01_pretraining.py \
+    idx=$idx model=$model_group/$variant dataset=$dataset \
+    resume=true
 
 sleep 30s

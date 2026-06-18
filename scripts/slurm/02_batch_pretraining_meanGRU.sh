@@ -43,6 +43,6 @@ config_basename=$(basename $hp_config .yaml)
 
 echo "Running Pretrain meanGRU Config: $config_basename at Run Index: $idx"
 
-PYTHONPATH=. python scripts/01_batch_pretraining.py --idx $idx --model meanGRU --dataset $dataset --hp_config $hp_config --postfix $config_basename
+PYTHONPATH=. python scripts/01_pretraining.py idx=$idx model=meanGRU/$config_basename dataset=$dataset
 
 sleep 30s

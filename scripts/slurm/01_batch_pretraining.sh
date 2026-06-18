@@ -25,10 +25,10 @@ source /data/users2/ppopov1/miniconda/bin/activate pile
 # model_idx=$(($SLURM_ARRAY_TASK_ID % ${#MODELS[@]}))
 # idx=$(($SLURM_ARRAY_TASK_ID / ${#MODELS[@]}))
 # model=${MODELS[$model_idx]}
-model='DECIFRA'
+model='DECIFRA/default'
 dataset="ukb"
 idx=$SLURM_ARRAY_TASK_ID
 
-PYTHONPATH=. python scripts/01_batch_pretraining.py --idx $idx --model $model --dataset $dataset
+PYTHONPATH=. python scripts/01_pretraining.py idx=$idx model=$model dataset=$dataset
 
 sleep 30s

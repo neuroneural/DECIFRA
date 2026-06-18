@@ -1,0 +1,16 @@
+# Generated from src.models.meanLSTM.default_HPs()
+model_name: meanLSTM
+module: meanLSTM
+single_embedder: true
+single_LSTM: true
+rnn:
+  input_embedding_size: 16
+  hidden_size: 32
+  num_layers: 1
+  dropout: 0.0
+single_predictor: true
+loss:
+  prediction_delay: 0
+  prediction_depth: 1
+  forecast_weight: 1.0
+lr: 0.001
