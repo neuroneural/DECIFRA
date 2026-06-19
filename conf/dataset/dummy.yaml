@@ -1,1 +1,2 @@
 name: dummy
+n_classes: 2          # used by fine-tuning (labels are random, for smoke tests)

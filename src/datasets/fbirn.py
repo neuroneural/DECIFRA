@@ -42,6 +42,21 @@ def load_data(
         "age_bins": age_bins
     }, demo_df
 
+def load_finetuning_data(ds_cfg=None):
+    """
+    Registry entrypoint for fine-tuning -> (data, labels).
+    ds_cfg fields: `split` (full|main|holdout, default full), `label`
+    (diags|sexes|age_bins, default diags).
+    """
+    split = str(ds_cfg.get("split", "full")) if ds_cfg is not None else "full"
+    label = str(ds_cfg.get("label", "diags")) if ds_cfg is not None else "diags"
+    loaders = {"full": load_data, "main": load_data_main, "holdout": load_data_hold}
+    if split not in loaders:
+        raise ValueError(f"Unknown fbirn split '{split}'. Expected: {list(loaders)}.")
+    record, _ = loaders[split]()
+    return record["data"], record[label]
+
+
 def load_data_hold():
     data, demo = load_data() 
     holdout_indices = pd.read_csv(f"{DATA_ROOT}/fbirn_ica/idx_holdout", header=None).values[:, 0]

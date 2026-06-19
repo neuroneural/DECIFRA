@@ -1,1 +1,4 @@
 name: fbirn
+label: diags          # diags | sexes | age_bins (used by fine-tuning)
+split: main           # full | main | holdout
+n_classes: 2

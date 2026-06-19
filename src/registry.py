@@ -67,13 +67,25 @@ def build_model_cfg(cfg):
     """
     Assemble the effective, flat model config the model class consumes.
 
-    Flattens the task block named by ``cfg.mode`` onto the shared model params,
-    drops the unused blocks, and injects runtime sizes from ``cfg.data_info``.
+    Base = shared params + the ``pretrain`` block; when ``cfg.mode == 'finetune'``
+    the optional ``finetune`` block is merged on top as a delta. ``pretraining``
+    is derived from the mode. Runtime sizes come from ``cfg.data_info``.
     """
     mode = cfg.mode
     shared = {k: v for k, v in cfg.model.items() if k not in _TASK_BLOCKS}
-    block = cfg.model.get(mode, {}) or {}
-    model_cfg = OmegaConf.merge(OmegaConf.create(shared), block)
+    model_cfg = OmegaConf.create(shared)
+
+    # The `pretrain` block holds the base task HPs (loss, etc.); `finetune` is an
+    # optional delta applied on top when fine-tuning (e.g. lowered loss weights,
+    # FT lr). Either block may be absent — forecasters carry neither, and a model
+    # that needs no FT tweaks simply omits `finetune` (base config is reused).
+    if cfg.model.get("pretrain"):
+        model_cfg = OmegaConf.merge(model_cfg, cfg.model.pretrain)
+    if mode == "finetune" and cfg.model.get("finetune"):
+        model_cfg = OmegaConf.merge(model_cfg, cfg.model.finetune)
+
+    # The mode determines the classification flag — never hand-set in configs.
+    model_cfg.pretraining = (mode == "pretrain")
 
     # Stamp the resolved class/module so the saved config self-describes how to
     # rebuild the model (used by downstream fine-tuning).
@@ -146,3 +158,45 @@ def resolve_dataset(cfg):
     else:
         data, extra_train_data = result, None
     return data, extra_train_data
+
+
+def resolve_finetuning_dataset(cfg):
+    """Load labelled data for fine-tuning -> ``(data, labels)``."""
+    name = cfg.dataset.name
+    try:
+        module = import_module(f"src.datasets.{name}")
+    except ModuleNotFoundError as e:
+        raise ModuleNotFoundError(f"No module 'src.datasets.{name}' found.") from e
+    try:
+        loader = getattr(module, "load_finetuning_data")
+    except AttributeError as e:
+        raise AttributeError(
+            f"'src.datasets.{name}' must define "
+            f"'load_finetuning_data(ds_cfg) -> (data, labels)' for fine-tuning."
+        ) from e
+    return loader(cfg.dataset)
+
+
+def load_pretrained_state(model, run_dir, checkpoint="best", drop_keys=("clf",)):
+    """
+    Load weights from a pretraining run into ``model`` (strict=False), skipping
+    any state-dict keys containing one of ``drop_keys`` (e.g. the classifier head,
+    which is trained from scratch). ``checkpoint`` is "best" (resolved via
+    best_epoch.txt) or an integer epoch.
+    """
+    import os
+    import torch
+
+    ckpt_dir = os.path.join(run_dir, "checkpoints")
+    if str(checkpoint) == "best":
+        with open(os.path.join(run_dir, "best_epoch.txt")) as f:
+            epoch = int(f.read().strip())
+    else:
+        epoch = int(checkpoint)
+    path = os.path.join(ckpt_dir, f"model_{epoch}.pt")
+    state = torch.load(path, map_location="cpu")
+    pruned = {k: v for k, v in state.items()
+              if not any(bad in k for bad in drop_keys)}
+    missing, unexpected = model.load_state_dict(pruned, strict=False)
+    return {"epoch": epoch, "loaded": len(pruned),
+            "missing": list(missing), "unexpected": list(unexpected)}

@@ -104,6 +104,15 @@ class DECIFRA_MS(DECIFRA):
         
         self.BTP.transfer_weight = self.current_scale
 
+    def setup_finetuning(self):
+        """
+        Called once by the (single-stage) fine-tuning trainer. Pretraining already
+        ramped the cross-channel mixing, so pin it to its terminal scale and skip
+        any per-epoch ramping (the FT trainer does not call set_epoch).
+        """
+        self.current_scale = self.transition_target_weight
+        self.BTP.transfer_weight = self.current_scale
+
     def handle_batch(self, batch):
         loss, log = super().handle_batch(batch)
         log["transfer_weight"] = self.current_scale

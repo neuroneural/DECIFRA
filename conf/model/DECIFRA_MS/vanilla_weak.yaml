@@ -24,3 +24,9 @@ pretrain:
     prediction_delay: 0
     prediction_depth: 1
     weighted_change: false
+
+finetune:                # delta applied on top of base for mode=finetune
+  lr: 3.0e-4
+  loss:
+    sp_weight: 0.02        # aux losses down-weighted vs the CE objective
+    forecast_weight: 0.02

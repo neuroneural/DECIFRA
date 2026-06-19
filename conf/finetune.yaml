@@ -1,0 +1,36 @@
+# Root config for scripts/02_finetuning.py
+# Usage:
+#   python scripts/02_finetuning.py model=DECIFRA_MS/default dataset=fbirn \
+#          pretrained.run=<pretraining run dir> idx=0
+defaults:
+  - model: ???
+  - dataset: ???
+  - _self_
+
+mode: finetune          # selects the model's 'finetune' delta (see src.registry)
+
+idx: 0
+postfix: null
+resume: false
+
+pretrained:
+  run: null             # pretraining run dir; null => train classifier from scratch
+  checkpoint: best      # 'best' (via best_epoch.txt) or an integer epoch
+  load: true            # set false to ignore pretrained weights
+  drop_keys: [clf]      # state_dict key substrings skipped on load (clf head)
+
+train:
+  epochs: 200
+  batch_size: 64
+  n_splits: 5           # outer StratifiedKFold (held-out test per fold)
+  n_repeats: 10         # inner StratifiedShuffleSplit (train/val) per fold
+  val_size: null        # null => 1/n_splits
+  patience: null        # null => patience == epochs
+  preserve_checkpoints: false
+  zscore: true
+
+hydra:
+  run:
+    dir: ./assets/utility_logs
+  job:
+    chdir: false

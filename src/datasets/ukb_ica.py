@@ -55,6 +55,18 @@ def load_data_exp():
     return load_ica("exp")
 
 
+def load_finetuning_data(ds_cfg=None):
+    """
+    Registry entrypoint for fine-tuning -> (data, labels). Uses a labelled raw
+    variant (hold|exp). ds_cfg fields: `variant` (default exp), `label`
+    (sexes|age_bins, default sexes).
+    """
+    variant = str(ds_cfg.get("variant", "exp")) if ds_cfg is not None else "exp"
+    label = str(ds_cfg.get("label", "sexes")) if ds_cfg is not None else "sexes"
+    record, _ = load_ica(variant)  # only hold/exp carry labels
+    return record["data"], record[label]
+
+
 def load_pretraining_data(ds_cfg=None):
     """Registry entrypoint. Returns `data` or `(data, extra_train_data)`."""
     variant = str(ds_cfg.get("variant", "hold")) if ds_cfg is not None else "hold"
