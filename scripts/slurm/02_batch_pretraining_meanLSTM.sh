@@ -23,10 +23,10 @@ echo $HOSTNAME >&2
 source /data/users2/ppopov1/miniconda/bin/activate pile
 
 CONFIGS=(
-    "assets/configs/meanGRU/all_shared.yaml"
-    "assets/configs/meanGRU/all_independent.yaml"
-    "assets/configs/meanGRU/shared_features_independent_dynamics.yaml"
-    "assets/configs/meanGRU/independent_features_shared_dynamics.yaml"
+    "all_shared"
+    "all_independent"
+    "shared_features_independent_dynamics"
+    "independent_features_shared_dynamics"
 )
 
 # Using modulo logic

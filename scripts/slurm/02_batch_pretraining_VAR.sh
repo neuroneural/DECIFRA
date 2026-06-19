@@ -23,12 +23,12 @@ echo $HOSTNAME >&2
 source /data/users2/ppopov1/miniconda/bin/activate pile
 
 CONFIGS=(
-    "assets/configs/VAR/lag_5_full.yaml"
-    "assets/configs/VAR/lag_5_single.yaml"
-    "assets/configs/VAR/lag_5_multi.yaml"
-    "assets/configs/VAR/lag_20_full.yaml"
-    "assets/configs/VAR/lag_20_single.yaml"
-    "assets/configs/VAR/lag_20_multi.yaml"
+    "lag_5_full"
+    "lag_5_single"
+    "lag_5_multi"
+    "lag_20_full"
+    "lag_20_single"
+    "lag_20_multi"
 )
 
 # Using modulo logic

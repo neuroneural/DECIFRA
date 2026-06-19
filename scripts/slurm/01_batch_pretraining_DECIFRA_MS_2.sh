@@ -24,8 +24,8 @@ echo $HOSTNAME >&2
 source /data/users2/ppopov1/miniconda/bin/activate pile
 
 CONFIGS=(
-    "assets/configs/DECIFRA_MS/vanilla_strong.yaml"
-    "assets/configs/DECIFRA_MS/vanilla_weak.yaml"
+    "vanilla_strong"
+    "vanilla_weak"
 )
 
 # Using modulo logic

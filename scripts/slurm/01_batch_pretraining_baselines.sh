@@ -22,13 +22,13 @@ echo $HOSTNAME >&2
 # Run the actual job
 source /data/users2/ppopov1/miniconda/bin/activate pile
 
-    # "VAR:assets/configs/VAR/lag_1_multi.yaml"
-    # "VAR:assets/configs/VAR/lag_1_single.yaml"
+    # "VAR:lag_1_multi"
+    # "VAR:lag_1_single"
 CONFIGS=(
-    "VAR:assets/configs/VAR/lag_1_full.yaml"
-    "VAR:assets/configs/VAR/lag_20_full.yaml"
-    "GRU_forecaster:assets/configs/GRU_forecaster/default.yaml"
-    "LSTM_forecaster:assets/configs/LSTM_forecaster/default.yaml"
+    "VAR:lag_1_full"
+    "VAR:lag_20_full"
+    "GRU_forecaster:default"
+    "LSTM_forecaster:default"
 )
 
 # Using modulo logic

@@ -44,8 +44,8 @@ MODELS=(
     "DECIFRA_MS"
 )
 CONFIG_DIRS=(
-    "assets/configs/DECIFRA_sens"
-    "assets/configs/DECIFRA_MS_sens"
+    "DECIFRA_sens"
+    "DECIFRA_MS_sens"
 )
 
 variant_idx=$(($SLURM_ARRAY_TASK_ID % ${#VARIANTS[@]}))

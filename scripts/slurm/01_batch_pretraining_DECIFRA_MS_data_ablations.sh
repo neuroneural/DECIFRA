@@ -31,7 +31,7 @@ ds_idx=$(($SLURM_ARRAY_TASK_ID % ${#DATASETS[@]}))
 idx=$(($SLURM_ARRAY_TASK_ID / ${#DATASETS[@]}))  
 
 dataset=${DATASETS[$ds_idx]}
-hp_config="assets/configs/DECIFRA_MS/default.yaml"
+hp_config="default"
 
 echo "Running Pretrain DECIFRA_MS on Dataset: $dataset at Run Index: $idx"
 

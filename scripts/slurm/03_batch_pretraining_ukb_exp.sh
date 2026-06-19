@@ -23,14 +23,14 @@ echo $HOSTNAME >&2
 source /data/users2/ppopov1/miniconda/bin/activate pile
 
 CONFIGS=(
-    "VAR|assets/configs/VAR/lag_1_full.yaml"
-    "VAR|assets/configs/VAR/lag_20_full.yaml"
-    "meanGRU|assets/configs/meanGRU/all_shared.yaml"
-    "meanGRU|assets/configs/meanGRU/all_independent.yaml"
-    "meanLSTM|assets/configs/meanGRU/all_shared.yaml"
-    "meanLSTM|assets/configs/meanGRU/all_independent.yaml"
-    "GRU_forecaster|assets/configs/GRU_forecaster/default.yaml"
-    "LSTM_forecaster|assets/configs/LSTM_forecaster/default.yaml"
+    "VAR|lag_1_full"
+    "VAR|lag_20_full"
+    "meanGRU|all_shared"
+    "meanGRU|all_independent"
+    "meanLSTM|all_shared"
+    "meanLSTM|all_independent"
+    "GRU_forecaster|default"
+    "LSTM_forecaster|default"
 )
 
 # Using modulo logic

@@ -24,8 +24,8 @@ echo $HOSTNAME >&2
 source /data/users2/ppopov1/miniconda/bin/activate pile
 
 CONFIGS=(
-    "assets/configs/DECIFRA_MS/default.yaml"
-    "assets/configs/DECIFRA_MS/noMixed.yaml"
+    "default"
+    "noMixed"
 )
 
 # Using modulo logic

@@ -24,7 +24,7 @@ echo $HOSTNAME >&2
 source /data/users2/ppopov1/miniconda/bin/activate pile
 
 CONFIGS=(
-    "assets/configs/DECIFRA_MS/default.yaml"
+    "default"
 )
 
 # Using modulo logic

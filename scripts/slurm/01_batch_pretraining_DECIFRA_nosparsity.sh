@@ -22,7 +22,7 @@ echo $HOSTNAME >&2
 source /data/users2/ppopov1/miniconda/bin/activate pile
 
 CONFIGS=(
-    "assets/configs/DECIFRA_MS/no_sparsity.yaml"
+    "no_sparsity"
 )
 
 # Using modulo logic
