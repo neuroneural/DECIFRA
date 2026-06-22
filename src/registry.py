@@ -82,7 +82,11 @@ def build_model_cfg(cfg):
     if cfg.model.get("pretrain"):
         model_cfg = OmegaConf.merge(model_cfg, cfg.model.pretrain)
     if mode == "finetune" and cfg.model.get("finetune"):
-        model_cfg = OmegaConf.merge(model_cfg, cfg.model.finetune)
+        # `pretrained` is load orchestration (which checkpoint to init from), not
+        # a model HP — keep it out of the flattened model config; the run script
+        # reads it from cfg.model.finetune.pretrained.
+        ft = {k: v for k, v in cfg.model.finetune.items() if k != "pretrained"}
+        model_cfg = OmegaConf.merge(model_cfg, ft)
 
     # The mode determines the classification flag — never hand-set in configs.
     model_cfg.pretraining = (mode == "pretrain")

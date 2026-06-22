@@ -30,3 +30,8 @@ finetune:                # delta applied on top of base for mode=finetune
   loss:
     sp_weight: 0.02        # aux losses down-weighted vs the CE objective
     forecast_weight: 0.02
+  pretrained:
+    run: assets/logs/1_pretrain-ukb-DECIFRA_MS-noMixed/00
+    checkpoint: best
+    load: true
+    drop_keys: [clf]

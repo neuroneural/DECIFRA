@@ -66,10 +66,18 @@ def main(cfg):
     ModelClass = resolve_model(cfg)
     model_cfg = build_model_cfg(cfg)
 
+    # Where to initialise weights from lives in the model config's finetune block
+    # (per-model: not every model has pretrained weights). Absent => from scratch.
+    ft_block = cfg.model.get("finetune") or {}
+    pre = ft_block.get("pretrained") or {}
+    pre_run = pre.get("run")
+    pre_load = pre.get("load", True)
+    pre_ckpt = pre.get("checkpoint", "best")
+    pre_drop = list(pre.get("drop_keys", ["clf"]))
+
     # Safety check against the pretrained run's saved architecture.
-    pre = cfg.pretrained
-    if pre.get("run") and pre.get("load", True):
-        pre_cfg = OmegaConf.load(os.path.join(pre.run, "model_config.yaml"))
+    if pre_run and pre_load:
+        pre_cfg = OmegaConf.load(os.path.join(pre_run, "model_config.yaml"))
         if int(pre_cfg.input_size) != int(model_cfg.input_size):
             raise ValueError(
                 f"feature_size mismatch: dataset has {model_cfg.input_size} features "
@@ -99,8 +107,8 @@ def main(cfg):
             continue
 
         model = ModelClass(model_cfg).to(device)
-        if pre.get("run") and pre.get("load", True):
-            info = load_pretrained_state(model, pre.run, pre.checkpoint, list(pre.drop_keys))
+        if pre_run and pre_load:
+            info = load_pretrained_state(model, pre_run, pre_ckpt, pre_drop)
             if fold == 0 and repeat == 0:
                 print(f"  loaded {info['loaded']} tensors from epoch {info['epoch']} "
                       f"({len(info['missing'])} missing e.g. clf)")

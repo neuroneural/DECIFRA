@@ -35,3 +35,8 @@ finetune:                # delta applied on top of base for mode=finetune
   loss:
     sp_weight: 0.02        # aux losses down-weighted vs the CE objective
     forecast_weight: 0.02
+  pretrained:              # weights to initialise from (read by 02_finetuning.py)
+    run: assets/logs/1_pretrain-ukb-DECIFRA/00   # default; override to sweep seeds
+    checkpoint: best       # 'best' (via best_epoch.txt) or an integer epoch
+    load: true             # false => train the classifier from scratch
+    drop_keys: [clf]       # state_dict key substrings skipped on load

@@ -1,7 +1,10 @@
 # Root config for scripts/02_finetuning.py
 # Usage:
-#   python scripts/02_finetuning.py model=DECIFRA_MS/default dataset=fbirn \
-#          pretrained.run=<pretraining run dir> idx=0
+#   python scripts/02_finetuning.py model=DECIFRA dataset=fbirn idx=0
+# The pretrained-weights source lives in the model config's `finetune.pretrained`
+# block (per-model). Override/sweep it with e.g.
+#   model.finetune.pretrained.run=<pretraining run dir>
+#   model.finetune.pretrained.load=false   # train classifier from scratch
 defaults:
   - model: ???
   - dataset: ???
@@ -12,12 +15,6 @@ mode: finetune          # selects the model's 'finetune' delta (see src.registry
 idx: 0
 postfix: null
 resume: false
-
-pretrained:
-  run: null             # pretraining run dir; null => train classifier from scratch
-  checkpoint: best      # 'best' (via best_epoch.txt) or an integer epoch
-  load: true            # set false to ignore pretrained weights
-  drop_keys: [clf]      # state_dict key substrings skipped on load (clf head)
 
 train:
   epochs: 200
