@@ -127,6 +127,32 @@ def resolve_model(cfg):
         ) from e
 
 
+def build_model(cfg):
+    """
+    Construct the model for ``cfg`` and return ``(model, model_cfg)``.
+
+    In ``mode == finetune`` the model is initialised from the checkpoint declared
+    in ``cfg.model.finetune.pretrained`` (strict=False, classifier head skipped) —
+    so callers just ask for a model and get one that is ready for the mode, with
+    no checkpoint plumbing in the script. The file I/O lives here (not in the
+    model's ``__init__``) to keep the nn.Module free of log-layout coupling.
+    Models with no pretrained block (or ``load: false``) come back fresh.
+    """
+    ModelClass = resolve_model(cfg)
+    model_cfg = build_model_cfg(cfg)
+    model = ModelClass(model_cfg)
+
+    if cfg.get("mode") == "finetune":
+        pre = (cfg.model.get("finetune") or {}).get("pretrained") or {}
+        if pre.get("run") and pre.get("load", True):
+            info = load_pretrained_state(
+                model, pre.run, pre.get("checkpoint", "best"),
+                list(pre.get("drop_keys", ["clf"])),
+            )
+            model._pretrained_info = info  # for one-time logging by the caller
+    return model, model_cfg
+
+
 def resolve_dataset(cfg):
     """
     Load the dataset named by ``cfg.dataset.name``.

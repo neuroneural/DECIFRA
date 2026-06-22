@@ -12,8 +12,9 @@ defaults:
 
 mode: finetune          # selects the model's 'finetune' delta (see src.registry)
 
-idx: 0
-postfix: null
+fold: null              # null => run all outer folds; int k => run only fold k
+                        # (lets a slurm array parallelise folds into one run dir)
+postfix: null           # optional suffix to distinguish experiments in one dir
 resume: false
 
 train:

@@ -4,16 +4,18 @@ DECIFRA checkpoint.
 
 Examples
 --------
-  python scripts/02_finetuning.py model=DECIFRA_MS/default dataset=fbirn \
-         pretrained.run=assets/logs/1_pretrain-ukb-DECIFRA_MS-default/00 idx=0
-  python scripts/02_finetuning.py model=DECIFRA/default dataset=dummy \
-         pretrained.load=false idx=0          # classifier from scratch (baseline)
+  python scripts/02_finetuning.py model=DECIFRA dataset=fbirn          # all folds
+  python scripts/02_finetuning.py model=DECIFRA dataset=fbirn fold=2   # one fold
+  python scripts/02_finetuning.py model=DECIFRA dataset=dummy \
+         model.finetune.pretrained.load=false                         # from scratch
 
-For each outer fold (held-out test) and inner repeat (train/val resample) a fresh
-model is built, pretrained weights are loaded (strict=False, clf head skipped),
-and a single train/val/test cycle runs. Results are aggregated to the run root.
+The pretrained-weights source lives in the model config's finetune.pretrained
+block; build_model() handles checkpoint loading by mode. `fold` selects a single
+outer fold (for array parallelism) or runs them all when null. All folds of an
+experiment share one run dir; results are aggregated by scanning it.
 """
 import os
+import glob
 
 import numpy as np
 import pandas as pd
@@ -23,13 +25,33 @@ from omegaconf import OmegaConf, open_dict
 from hydra.core.hydra_config import HydraConfig
 
 from src.settings import LOGS_ROOT
-from src.registry import (
-    resolve_finetuning_dataset, resolve_model, build_model_cfg, load_pretrained_state,
-)
+from src.registry import resolve_finetuning_dataset, build_model, build_model_cfg
 from src.splits import nested_cv_splits
 from src.trainers.FineTuneTrainer import FineTuneTrainer
 
 METRICS = ["test_accuracy", "test_balanced_accuracy", "test_auc", "test_f1_macro"]
+
+
+def aggregate(run_root):
+    """Build fold_results.csv + summary.txt from every completed cell present."""
+    rows = []
+    for tl in sorted(glob.glob(os.path.join(run_root, "k*", "r*", "test_log.csv"))):
+        parts = tl.split(os.sep)
+        r = pd.read_csv(tl).iloc[0].to_dict()
+        r.update({"fold": int(parts[-3][1:]), "repeat": int(parts[-2][1:])})
+        rows.append(r)
+    if not rows:
+        return
+    df = pd.DataFrame(rows).sort_values(["fold", "repeat"])
+    df.to_csv(os.path.join(run_root, "fold_results.csv"), index=False)
+    n_folds = df["fold"].nunique()
+    with open(os.path.join(run_root, "summary.txt"), "w") as f:
+        head = f"# {len(df)} runs across {n_folds} folds"
+        print("  " + head); f.write(head + "\n")
+        for m in METRICS:
+            if m in df:
+                line = f"{m}: {df[m].mean():.4f} +/- {df[m].std():.4f}"
+                print("  " + line); f.write(line + "\n")
 
 
 @hydra.main(version_base=None, config_path="../conf", config_name="finetune")
@@ -44,9 +66,13 @@ def main(cfg):
     save_name = f"2_finetune-{dataset_choice}-{tag}"
     if cfg.get("postfix"):
         save_name += f"-{cfg.postfix}"
-    run_root = os.path.join(LOGS_ROOT, save_name, f"{int(cfg.idx):02d}")
+    run_root = os.path.join(LOGS_ROOT, save_name)   # folds share one experiment dir
     os.makedirs(run_root, exist_ok=True)
-    print(f"Fine-tuning config {model_choice} on {dataset_choice} -> {run_root}")
+
+    fold_sel = cfg.get("fold")
+    fold_sel = None if fold_sel is None else int(fold_sel)
+    print(f"Fine-tuning {model_choice} on {dataset_choice} -> {run_root} "
+          f"({'all folds' if fold_sel is None else f'fold {fold_sel}'})")
 
     device = torch.device("cuda" if torch.cuda.is_available()
                           else "mps" if torch.backends.mps.is_available() else "cpu")
@@ -62,22 +88,11 @@ def main(cfg):
     with open_dict(cfg):
         cfg.data_info = {"feature_size": int(data.shape[2]), "n_classes": n_classes}
 
-    # --- MODEL TEMPLATE (built fresh per run; here just for the safety check) ---
-    ModelClass = resolve_model(cfg)
+    # Safety check: dataset features must match the pretrained checkpoint.
     model_cfg = build_model_cfg(cfg)
-
-    # Where to initialise weights from lives in the model config's finetune block
-    # (per-model: not every model has pretrained weights). Absent => from scratch.
-    ft_block = cfg.model.get("finetune") or {}
-    pre = ft_block.get("pretrained") or {}
-    pre_run = pre.get("run")
-    pre_load = pre.get("load", True)
-    pre_ckpt = pre.get("checkpoint", "best")
-    pre_drop = list(pre.get("drop_keys", ["clf"]))
-
-    # Safety check against the pretrained run's saved architecture.
-    if pre_run and pre_load:
-        pre_cfg = OmegaConf.load(os.path.join(pre_run, "model_config.yaml"))
+    pre = (cfg.model.get("finetune") or {}).get("pretrained") or {}
+    if pre.get("run") and pre.get("load", True):
+        pre_cfg = OmegaConf.load(os.path.join(pre.run, "model_config.yaml"))
         if int(pre_cfg.input_size) != int(model_cfg.input_size):
             raise ValueError(
                 f"feature_size mismatch: dataset has {model_cfg.input_size} features "
@@ -85,36 +100,33 @@ def main(cfg):
         if pre_cfg.get("model_name") != model_cfg.model_name:
             print(f"  WARNING: pretrained class {pre_cfg.get('model_name')} != "
                   f"selected {model_cfg.model_name}; loading compatible weights only.")
+        print(f"  pretrained: {pre.run} (checkpoint={pre.get('checkpoint', 'best')})")
 
     t = cfg.train
     batch_size = int(t.batch_size)
 
-    # --- NESTED CV ---
-    results = []
-    splits = list(nested_cv_splits(labels, int(t.n_splits), int(t.n_repeats),
-                                   val_size=t.get("val_size")))
-    print(f"Running {len(splits)} runs ({t.n_splits} folds x {t.n_repeats} repeats)")
+    # --- NESTED CV (optionally restricted to one outer fold) ---
+    splits = [s for s in nested_cv_splits(labels, int(t.n_splits), int(t.n_repeats),
+                                          val_size=t.get("val_size"))
+              if fold_sel is None or s[0] == fold_sel]
+    print(f"Running {len(splits)} cell(s)")
 
     for fold, repeat, tr_idx, val_idx, te_idx in splits:
         run_dir = os.path.join(run_root, f"k{fold:02d}", f"r{repeat:02d}")
         os.makedirs(run_dir, exist_ok=True)
-
         if cfg.resume and os.path.exists(os.path.join(run_dir, "best.pt")) \
                 and os.path.exists(os.path.join(run_dir, "test_log.csv")):
-            row = pd.read_csv(os.path.join(run_dir, "test_log.csv")).iloc[0].to_dict()
-            row.update({"fold": fold, "repeat": repeat})
-            results.append(row)
             continue
 
-        model = ModelClass(model_cfg).to(device)
-        if pre_run and pre_load:
-            info = load_pretrained_state(model, pre_run, pre_ckpt, pre_drop)
-            if fold == 0 and repeat == 0:
-                print(f"  loaded {info['loaded']} tensors from epoch {info['epoch']} "
-                      f"({len(info['missing'])} missing e.g. clf)")
+        model, model_cfg = build_model(cfg)   # constructs + loads weights by mode
+        model.to(device)
+        if fold == splits[0][0] and repeat == 0 and hasattr(model, "_pretrained_info"):
+            i = model._pretrained_info
+            print(f"  loaded {i['loaded']} tensors from epoch {i['epoch']} "
+                  f"({len(i['missing'])} missing e.g. clf)")
 
         optimizer = model.get_optimizer()
-        make = lambda idx, shuffle: ModelClass.prepare_dataloader(
+        make = lambda idx, shuffle: type(model).prepare_dataloader(
             data[idx], labels[idx], shuffle=shuffle, batch_size=batch_size, zscore=t.zscore)
 
         trainer = FineTuneTrainer(
@@ -126,23 +138,13 @@ def main(cfg):
             device=str(device), save_path=run_dir, resume=cfg.resume,
             preserve_checkpoints=bool(t.preserve_checkpoints),
         )
-        test_row = trainer.run()
-        test_row.update({"fold": fold, "repeat": repeat})
-        results.append(test_row)
+        row = trainer.run()
         print(f"  k{fold:02d} r{repeat:02d}: "
-              + " ".join(f"{m.replace('test_','')}={test_row.get(m, float('nan')):.3f}"
+              + " ".join(f"{m.replace('test_','')}={row.get(m, float('nan')):.3f}"
                          for m in METRICS))
 
-    # --- AGGREGATE ---
-    df = pd.DataFrame(results)
-    df.to_csv(os.path.join(run_root, "fold_results.csv"), index=False)
-    summary = {m: (df[m].mean(), df[m].std()) for m in METRICS if m in df}
-    with open(os.path.join(run_root, "summary.txt"), "w") as f:
-        for m, (mean, std) in summary.items():
-            line = f"{m}: {mean:.4f} +/- {std:.4f}"
-            print("  " + line)
-            f.write(line + "\n")
-    return df
+    # Aggregate over every completed cell present (handles fold-parallel runs).
+    aggregate(run_root)
 
 
 if __name__ == "__main__":
