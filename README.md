@@ -1,4 +1,8 @@
 This repository contains the implementation of DECIFRA architecture designed for derivation of effective connectivity features from fMRI time series.
+
+** Codebase is being actively revised to make it more user-friendly and ready-to-use on new data. **
+
+
 # 1. Requirements
 ```bash
 conda create -n dcfr python=3.12
