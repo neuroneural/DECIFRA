@@ -132,7 +132,7 @@ def build_model(cfg):
     Construct the model for ``cfg`` and return ``(model, model_cfg)``.
 
     In ``mode == finetune`` the model is initialised from the checkpoint declared
-    in ``cfg.model.finetune.pretrained`` (strict=False, classifier head skipped) —
+    in ``cfg.model.finetune.pretrained`` (strict except the skipped classifier head) —
     so callers just ask for a model and get one that is ready for the mode, with
     no checkpoint plumbing in the script. The file I/O lives here (not in the
     model's ``__init__``) to keep the nn.Module free of log-layout coupling.
@@ -209,8 +209,8 @@ def resolve_finetuning_dataset(cfg):
 
 def load_pretrained_state(model, run_dir, checkpoint="best", drop_keys=("clf",)):
     """
-    Load weights from a pretraining run into ``model`` (strict=False), skipping
-    any state-dict keys containing one of ``drop_keys`` (e.g. the classifier head,
+    Load weights from a pretraining run into ``model``, strict except for
+    state-dict keys containing one of ``drop_keys`` (e.g. the classifier head,
     which is trained from scratch). ``checkpoint`` is "best" (resolved via
     best_epoch.txt) or an integer epoch.
     """
@@ -228,5 +228,11 @@ def load_pretrained_state(model, run_dir, checkpoint="best", drop_keys=("clf",))
     pruned = {k: v for k, v in state.items()
               if not any(bad in k for bad in drop_keys)}
     missing, unexpected = model.load_state_dict(pruned, strict=False)
-    return {"epoch": epoch, "loaded": len(pruned),
-            "missing": list(missing), "unexpected": list(unexpected)}
+
+    # fail loudly unless only dropped keys (e.g. the fresh clf head) are missing
+    bad_missing = [k for k in missing if not any(bad in k for bad in drop_keys)]
+    if bad_missing or unexpected:
+        raise ValueError(
+            f"{path} does not match {type(model).__name__}: "
+            f"missing={bad_missing[:5]}, unexpected={list(unexpected)[:5]}")
+    return {"epoch": epoch, "loaded": len(pruned), "missing": list(missing)}

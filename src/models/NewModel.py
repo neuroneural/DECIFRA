@@ -8,7 +8,7 @@ from torch.nn.functional import softmax
 
 from omegaconf import OmegaConf, DictConfig
 
-from src.models.BaseModel import BaseModel, compute_metrics
+from src.models.BaseModel import BaseModel
 
 def default_HPs(cfg: DictConfig):
     model_cfg = {
@@ -118,13 +118,10 @@ class NewModel(BaseModel):
             logits, loss_load = self.forward(*data)
             loss, loss_log = self.compute_loss(loss_load, labels)
 
-            # compute metrics
-            y_prob = softmax(logits, dim=1).detach().cpu().numpy()
-            y_pred = y_prob.argmax(axis=1)
-            y_true = labels.detach().cpu().numpy()
-
-            batch_log = compute_metrics(y_prob, y_pred, y_true)
-            batch_log.update(loss_log)
+            # stash predictions; metrics are computed per epoch by the trainer
+            batch_log = dict(loss_log)
+            batch_log["y_prob"] = softmax(logits, dim=1).detach().cpu().numpy()
+            batch_log["y_true"] = labels.detach().cpu().numpy()
 
         return loss, batch_log
     

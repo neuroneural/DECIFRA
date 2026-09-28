@@ -7,10 +7,9 @@ from torch import nn
 from torch.nn.functional import cross_entropy, softmax
 from torch.utils.data import DataLoader, TensorDataset
 
-from sklearn.metrics import roc_auc_score
 from sklearn.metrics import (
     accuracy_score, balanced_accuracy_score, f1_score,
-    roc_auc_score,
+    roc_auc_score, confusion_matrix,
 )
 
 
@@ -63,7 +62,8 @@ class BaseModel(nn.Module, ABC):
         loss : Tensor
             Loss for backprop (if you need it)
         batch_log : dict
-            Dictionary of classification metrics and losses for logs.
+            Loss terms plus raw `y_prob`/`y_true`; the trainer pools them
+            over the epoch and computes metrics once.
         """
         # load batch into model
         
@@ -71,13 +71,10 @@ class BaseModel(nn.Module, ABC):
         logits, loss_load = self.forward(*data)
         loss, loss_log = self.compute_loss(loss_load, labels)
 
-        # compute metrics
-        y_prob = softmax(logits, dim=1).detach().cpu().numpy()
-        y_pred = y_prob.argmax(axis=1)
-        y_true = labels.detach().cpu().numpy()
-
-        batch_log = compute_metrics(y_prob, y_pred, y_true)
-        batch_log.update(loss_log)
+        # stash predictions; metrics are computed per epoch by the trainer
+        batch_log = dict(loss_log)
+        batch_log["y_prob"] = softmax(logits, dim=1).detach().cpu().numpy()
+        batch_log["y_true"] = labels.detach().cpu().numpy()
 
         return loss, batch_log
 
@@ -176,5 +173,11 @@ def compute_metrics(y_prob, y_pred, y_true):
     else: # multiclass classification
         log["auc"] = roc_auc_score(y_true, y_prob, multi_class='ovr', average='macro')
     log["f1_macro"] = f1_score(y_true, y_pred, average="macro")
+
+    # confusion counts: cm_true{i}_pred{j}
+    n_classes = y_prob.shape[1]
+    cm = confusion_matrix(y_true, y_pred, labels=list(range(n_classes)))
+    log.update({f"cm_true{i}_pred{j}": int(cm[i, j])
+                for i in range(n_classes) for j in range(n_classes)})
 
     return log

@@ -137,6 +137,7 @@ def main(cfg):
             epochs=int(t.epochs), patience=t.get("patience"),
             device=str(device), save_path=run_dir, resume=cfg.resume,
             preserve_checkpoints=bool(t.preserve_checkpoints),
+            test_ids=te_idx,
         )
         row = trainer.run()
         print(f"  k{fold:02d} r{repeat:02d}: "

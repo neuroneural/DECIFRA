@@ -1,9 +1,15 @@
+# Core: training + config
 numpy
 pandas
 torch
+scikit-learn
 omegaconf
 hydra-core
-lightning
-scikit-learn
+
+# Analysis & figures (scripts/asset_scripts, scripts/notebooks)
 matplotlib
+seaborn
+scipy
+pillow
 jupyterlab
+mne-connectivity   # only needed for connectogram plots (plot_connectograms.py)

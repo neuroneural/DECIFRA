@@ -8,9 +8,12 @@ nested-CV loop lives in scripts/02_finetuning.py; this trainer runs one cell.
 import os
 import time
 
+import numpy as np
 import torch
 import pandas as pd
 from omegaconf import OmegaConf
+
+from src.models.BaseModel import compute_metrics
 
 
 class EarlyStopping:
@@ -58,6 +61,7 @@ class FineTuneTrainer:
         save_path: str = None,
         resume: bool = False,
         preserve_checkpoints: bool = False,
+        test_ids=None,
     ) -> None:
         self.cfg = cfg
         self.model_cfg = model_cfg
@@ -72,6 +76,7 @@ class FineTuneTrainer:
         self.patience = patience if patience is not None else epochs
         self.resume = resume
         self.preserve_checkpoints = preserve_checkpoints
+        self.test_ids = test_ids  # dataset indices of test samples, in loader order
 
         if device is not None:
             self.device = torch.device(device)
@@ -90,6 +95,8 @@ class FineTuneTrainer:
             total_loss = 0.0
             n_batches = len(loader)
             agg = {}
+            probs, trues = [], []  # pooled across the whole loader
+
             for batch in loader:
                 batch = [b.to(self.device) for b in batch]
                 loss, log = self.model.handle_batch(batch)
@@ -101,9 +108,15 @@ class FineTuneTrainer:
                 for k, v in log.items():
                     if isinstance(v, (int, float)):
                         agg[k] = agg.get(k, 0.0) + float(v)
+                probs.append(log["y_prob"])
+                trues.append(log["y_true"])
+
+            # losses: per-batch mean; metrics: once over pooled predictions
             agg = {k: v / n_batches for k, v in agg.items()}
             agg["loss"] = total_loss / n_batches
-            return agg
+            y_prob, y_true = np.vstack(probs), np.hstack(trues)
+            agg.update(compute_metrics(y_prob, y_prob.argmax(axis=1), y_true))
+            return agg, y_prob, y_true
 
     def is_complete(self):
         """A finished run has best.pt written (also serves as the run marker)."""
@@ -152,8 +165,8 @@ class FineTuneTrainer:
 
         start = time.time()
         for epoch in range(start_epoch, self.epochs):
-            tr = self._epoch(self.train_loader, train=True)
-            va = self._epoch(self.val_loader, train=False)
+            tr, _, _ = self._epoch(self.train_loader, train=True)
+            va, _, _ = self._epoch(self.val_loader, train=False)
 
             torch.save(self.model.state_dict(), os.path.join(ckpt_dir, "last.pt"))
             torch.save(self.optimizer.state_dict(), os.path.join(ckpt_dir, "optimizer_last.pt"))
@@ -180,13 +193,22 @@ class FineTuneTrainer:
             f.write(f"{stopper.best_epoch}\n")
 
         # Test with the best model.
-        test = self._epoch(self.test_loader, train=False)
+        test, y_prob, y_true = self._epoch(self.test_loader, train=False)
         test_row = {f"test_{k}": v for k, v in test.items()}
         test_row["best_epoch"] = stopper.best_epoch
         test_row["train_time_s"] = round(time.time() - start, 1)
         pd.DataFrame([test_row]).to_csv(
             os.path.join(self.SAVE_PATH, "test_log.csv"), index=False
         )
+
+        # per-subject test predictions (test loader is unshuffled)
+        preds = pd.DataFrame({"y_true": y_true.astype(int),
+                              "y_pred": y_prob.argmax(axis=1).astype(int)})
+        for c in range(y_prob.shape[1]):
+            preds[f"p_{c}"] = y_prob[:, c]
+        if self.test_ids is not None:
+            preds.insert(0, "sample_idx", np.asarray(self.test_ids))
+        preds.to_csv(os.path.join(self.SAVE_PATH, "test_predictions.csv"), index=False)
 
         if not self.preserve_checkpoints:
             for fn in ("last.pt", "optimizer_last.pt"):
