@@ -24,10 +24,11 @@ A model config carries shared architecture keys plus optional task blocks::
     variant: default           # default | noGate | IMix | IMix_Res | ...
     rnn: {...}                 # shared architecture
     pretrain:  {pretraining: true,  loss: {...}}
-    finetune:  {pretraining: false, loss: {...}, load_pretrained: true}
+    finetune:  {loss: {...}, pretrained: {run, checkpoint, load, drop_keys}}
 
 ``build_model_cfg`` flattens the block named by ``cfg.mode`` onto the shared keys
-and stamps the resolved ``model_name``/``module`` so the saved config self-describes.
+and stamps the resolved ``model_name``/``module`` (and, when fine-tuning, the
+``pretrained`` source) so the saved config self-describes.
 
 Datasets
 --------
@@ -35,6 +36,7 @@ A dataset ``bar`` is resolved from ``src.datasets.bar`` and must expose
 ``load_pretraining_data() -> data`` or ``-> (data, extra_train_data)``.
 """
 
+import os
 from importlib import import_module
 
 from omegaconf import OmegaConf
@@ -82,9 +84,7 @@ def build_model_cfg(cfg):
     if cfg.model.get("pretrain"):
         model_cfg = OmegaConf.merge(model_cfg, cfg.model.pretrain)
     if mode == "finetune" and cfg.model.get("finetune"):
-        # `pretrained` is load orchestration (which checkpoint to init from), not
-        # a model HP — keep it out of the flattened model config; the run script
-        # reads it from cfg.model.finetune.pretrained.
+        # `pretrained` (which checkpoint to init from) is stamped below in resolved form
         ft = {k: v for k, v in cfg.model.finetune.items() if k != "pretrained"}
         model_cfg = OmegaConf.merge(model_cfg, ft)
 
@@ -96,6 +96,9 @@ def build_model_cfg(cfg):
     class_name, module = _class_and_module(cfg.model)
     model_cfg.model_name = class_name
     model_cfg.module = module
+    if mode == "finetune":
+        # ...and the weights it starts from ({run, epoch}; None = from scratch)
+        model_cfg.pretrained = pretrained_source(cfg)
 
     # Runtime sizes are known only after the data is loaded.
     model_cfg.input_size = cfg.data_info.feature_size
@@ -131,25 +134,18 @@ def build_model(cfg):
     """
     Construct the model for ``cfg`` and return ``(model, model_cfg)``.
 
-    In ``mode == finetune`` the model is initialised from the checkpoint declared
-    in ``cfg.model.finetune.pretrained`` (strict except the skipped classifier head) —
-    so callers just ask for a model and get one that is ready for the mode, with
-    no checkpoint plumbing in the script. The file I/O lives here (not in the
-    model's ``__init__``) to keep the nn.Module free of log-layout coupling.
-    Models with no pretrained block (or ``load: false``) come back fresh.
+    In ``mode == finetune`` the model is initialised from ``model_cfg.pretrained``,
+    the source resolved from ``cfg.model.finetune.pretrained``.
     """
     ModelClass = resolve_model(cfg)
     model_cfg = build_model_cfg(cfg)
     model = ModelClass(model_cfg)
 
-    if cfg.get("mode") == "finetune":
-        pre = (cfg.model.get("finetune") or {}).get("pretrained") or {}
-        if pre.get("run") and pre.get("load", True):
-            info = load_pretrained_state(
-                model, pre.run, pre.get("checkpoint", "best"),
-                list(pre.get("drop_keys", ["clf"])),
-            )
-            model._pretrained_info = info  # for one-time logging by the caller
+    src = model_cfg.get("pretrained")
+    if src:
+        drop_keys = list(cfg.model.finetune.pretrained.get("drop_keys", ["clf"]))
+        info = load_pretrained_state(model, src.run, src.epoch, drop_keys)
+        model._pretrained_info = info  # for one-time logging by the caller
     return model, model_cfg
 
 
@@ -207,23 +203,32 @@ def resolve_finetuning_dataset(cfg):
     return loader(cfg.dataset)
 
 
-def load_pretrained_state(model, run_dir, checkpoint="best", drop_keys=("clf",)):
+def pretrained_source(cfg):
     """
-    Load weights from a pretraining run into ``model``, strict except for
-    state-dict keys containing one of ``drop_keys`` (e.g. the classifier head,
-    which is trained from scratch). ``checkpoint`` is "best" (resolved via
-    best_epoch.txt) or an integer epoch.
+    Weights fine-tuning starts from, ``{"run": <pretraining run dir>, "epoch": int}``,
+    read from ``cfg.model.finetune.pretrained`` ("best" resolved via best_epoch.txt);
+    None when that block is absent or has ``load: false`` (trained from scratch).
     """
-    import os
+    pre = (cfg.model.get("finetune") or {}).get("pretrained") or {}
+    if not pre.get("run") or not pre.get("load", True):
+        return None
+    run = os.path.normpath(str(pre.run))
+    epoch = pre.get("checkpoint", "best")
+    if str(epoch) == "best":
+        with open(os.path.join(run, "best_epoch.txt")) as f:
+            epoch = f.read().strip()
+    return {"run": run, "epoch": int(epoch)}
+
+
+def load_pretrained_state(model, run_dir, epoch, drop_keys=("clf",)):
+    """
+    Load ``checkpoints/model_<epoch>.pt`` of a pretraining run into ``model``,
+    strict except for state-dict keys containing one of ``drop_keys`` (e.g. the
+    classifier head, which is trained from scratch).
+    """
     import torch
 
-    ckpt_dir = os.path.join(run_dir, "checkpoints")
-    if str(checkpoint) == "best":
-        with open(os.path.join(run_dir, "best_epoch.txt")) as f:
-            epoch = int(f.read().strip())
-    else:
-        epoch = int(checkpoint)
-    path = os.path.join(ckpt_dir, f"model_{epoch}.pt")
+    path = os.path.join(run_dir, "checkpoints", f"model_{int(epoch)}.pt")
     state = torch.load(path, map_location="cpu")
     pruned = {k: v for k, v in state.items()
               if not any(bad in k for bad in drop_keys)}

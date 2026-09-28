@@ -1,11 +1,12 @@
 #!/bin/bash
 #SBATCH -N 1
 #SBATCH -n 1
-#SBATCH -c 1
-#SBATCH --mem=20g
+#SBATCH -c 24
+#SBATCH --mem=128g
 #SBATCH -p qTRDGPUH
 #SBATCH --gres=gpu:A100:1
-#SBATCH -t 1200
+#SBATCH --exclude=arctrddgxa001
+#SBATCH -t 360
 #SBATCH -J ft_fbirn_DECIFRA
 #SBATCH -D .
 #SBATCH -e ./_error/error_ft_fbirn_DECIFRA_%A_%a.err
@@ -22,9 +23,9 @@
 # (the config default). To run one fold: --array=2 (=> fold=2).
 #
 # Pretrained weights come from the model config
-# (conf/model/DECIFRA.yaml -> finetune.pretrained.run). Override to sweep:
-#   model.finetune.pretrained.run=assets/logs/1_pretrain-ukb-DECIFRA/03
-#   model.finetune.pretrained.load=false      # from-scratch baseline
+# (conf/model/DECIFRA.yaml -> finetune.pretrained.run) and are recorded in each
+# cell's model_config.yaml. A dir holds one source; for another one add a
+# postfix, e.g. model.finetune.pretrained.load=false postfix=scratch.
 
 sleep 10s
 echo $HOSTNAME >&2

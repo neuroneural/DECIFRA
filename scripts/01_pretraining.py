@@ -17,10 +17,10 @@ import torch
 import hydra
 from omegaconf import OmegaConf, open_dict
 from hydra.core.hydra_config import HydraConfig
-from sklearn.model_selection import train_test_split
 
 from src.settings import LOGS_ROOT
 from src.registry import resolve_dataset, resolve_model, build_model_cfg
+from src.splits import pretraining_split
 
 
 @hydra.main(version_base=None, config_path="../conf", config_name="pretrain")
@@ -52,7 +52,8 @@ def main(cfg):
 
     # --- DATA ---
     data, more_tr_data = resolve_dataset(cfg)
-    train_data, val_data = train_test_split(data, test_size=0.2, random_state=42)
+    tr_idx, val_idx = pretraining_split(len(data))
+    train_data, val_data = data[tr_idx], data[val_idx]
     if more_tr_data is not None:
         train_data = np.concatenate([train_data, more_tr_data], axis=0)
     print(f"Train data shape: {train_data.shape}, Val data shape: {val_data.shape}")

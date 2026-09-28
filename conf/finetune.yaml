@@ -1,10 +1,8 @@
 # Root config for scripts/02_finetuning.py
 # Usage:
-#   python scripts/02_finetuning.py model=DECIFRA dataset=fbirn idx=0
+#   python scripts/02_finetuning.py model=DECIFRA dataset=fbirn fold=0
 # The pretrained-weights source lives in the model config's `finetune.pretrained`
-# block (per-model). Override/sweep it with e.g.
-#   model.finetune.pretrained.run=<pretraining run dir>
-#   model.finetune.pretrained.load=false   # train classifier from scratch
+# block (per model)
 defaults:
   - model: ???
   - dataset: ???

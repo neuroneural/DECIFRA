@@ -1,18 +1,21 @@
 """
-Fine-tuning entrypoint (Hydra): nested-CV classification on top of a pretrained
-DECIFRA checkpoint.
+Fine-tuning entrypoint (Hydra): nested-CV classification, optionally starting
+from a pretrained checkpoint.
 
 Examples
 --------
   python scripts/02_finetuning.py model=DECIFRA dataset=fbirn          # all folds
   python scripts/02_finetuning.py model=DECIFRA dataset=fbirn fold=2   # one fold
   python scripts/02_finetuning.py model=DECIFRA dataset=dummy \
-         model.finetune.pretrained.load=false                         # from scratch
+         model.finetune.pretrained.load=false postfix=scratch         # from scratch
 
 The pretrained-weights source lives in the model config's finetune.pretrained
-block; build_model() handles checkpoint loading by mode. `fold` selects a single
-outer fold (for array parallelism) or runs them all when null. All folds of an
-experiment share one run dir; results are aggregated by scanning it.
+block (models without it train from scratch); build_model() loads it by mode, and
+each cell's model_config.yaml records it resolved, as pretrained: {run, epoch}.
+`fold` selects a single outer fold (for array parallelism) or runs them all when
+null. Logs go to 2_finetune-<dataset>-<model>[-postfix]/k*/r*: all folds share
+that dir and are aggregated by scanning it, so it holds one source (checked at
+start); use a postfix to fine-tune another one.
 """
 import os
 import glob
@@ -25,7 +28,8 @@ from omegaconf import OmegaConf, open_dict
 from hydra.core.hydra_config import HydraConfig
 
 from src.settings import LOGS_ROOT
-from src.registry import resolve_finetuning_dataset, build_model, build_model_cfg
+from src.registry import (resolve_finetuning_dataset, build_model, build_model_cfg,
+                          pretrained_source)
 from src.splits import nested_cv_splits
 from src.trainers.FineTuneTrainer import FineTuneTrainer
 
@@ -67,6 +71,14 @@ def main(cfg):
     if cfg.get("postfix"):
         save_name += f"-{cfg.postfix}"
     run_root = os.path.join(LOGS_ROOT, save_name)   # folds share one experiment dir
+
+    # one dir = one pretrained source: refuse to mix with cells already present
+    source = pretrained_source(cfg)
+    for prev in glob.glob(os.path.join(run_root, "k*", "r*", "model_config.yaml")):
+        prev_source = OmegaConf.to_container(OmegaConf.load(prev)).get("pretrained")
+        if prev_source != source:
+            raise ValueError(f"{run_root} holds cells fine-tuned from {prev_source}, not "
+                             f"{source}; set a postfix to keep them apart.")
     os.makedirs(run_root, exist_ok=True)
 
     fold_sel = cfg.get("fold")
@@ -82,6 +94,8 @@ def main(cfg):
     data = np.asarray(data)
     labels = np.asarray(labels)
     n_classes = int(cfg.dataset.get("n_classes", len(np.unique(labels))))
+    if labels.min() < 0 or labels.max() >= n_classes:
+        raise ValueError(f"labels must be in 0..{n_classes - 1}, got {np.unique(labels).tolist()}")
     print(f"Data {data.shape}, labels {labels.shape}, classes {n_classes}, "
           f"balance {np.bincount(labels).tolist()}")
 
@@ -90,17 +104,16 @@ def main(cfg):
 
     # Safety check: dataset features must match the pretrained checkpoint.
     model_cfg = build_model_cfg(cfg)
-    pre = (cfg.model.get("finetune") or {}).get("pretrained") or {}
-    if pre.get("run") and pre.get("load", True):
-        pre_cfg = OmegaConf.load(os.path.join(pre.run, "model_config.yaml"))
+    if source:
+        pre_cfg = OmegaConf.load(os.path.join(source["run"], "model_config.yaml"))
         if int(pre_cfg.input_size) != int(model_cfg.input_size):
             raise ValueError(
                 f"feature_size mismatch: dataset has {model_cfg.input_size} features "
                 f"but pretrained model expects {pre_cfg.input_size}.")
-        if pre_cfg.get("model_name") != model_cfg.model_name:
+        if pre_cfg.get("model_name") not in (None, model_cfg.model_name):
             print(f"  WARNING: pretrained class {pre_cfg.get('model_name')} != "
-                  f"selected {model_cfg.model_name}; loading compatible weights only.")
-        print(f"  pretrained: {pre.run} (checkpoint={pre.get('checkpoint', 'best')})")
+                  f"selected {model_cfg.model_name}; loading anyway (keys must match).")
+    print(f"  pretrained: {source or 'none (from scratch)'}")
 
     t = cfg.train
     batch_size = int(t.batch_size)

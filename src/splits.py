@@ -6,7 +6,12 @@ Inner: StratifiedShuffleSplit(n_repeats) on the pool -> (train, val), a differen
        split per repeat. Test is the held-out outer fold.
 """
 import numpy as np
-from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
+from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit, train_test_split
+
+
+def pretraining_split(n_samples, val_size=0.2, seed=42):
+    """(train_idx, val_idx) of the pretraining data: the split every pretraining run uses."""
+    return train_test_split(np.arange(n_samples), test_size=val_size, random_state=seed)
 
 
 def nested_cv_splits(labels, n_splits, n_repeats, val_size=None, seed=42):
