@@ -10,12 +10,7 @@ Examples
          model.finetune.pretrained.load=false postfix=scratch         # from scratch
 
 The pretrained-weights source lives in the model config's finetune.pretrained
-block (models without it train from scratch); build_model() loads it by mode, and
-each cell's model_config.yaml records it resolved, as pretrained: {run, epoch}.
-`fold` selects a single outer fold (for array parallelism) or runs them all when
-null. Logs go to 2_finetune-<dataset>-<model>[-postfix]/k*/r*: all folds share
-that dir and are aggregated by scanning it, so it holds one source (checked at
-start); use a postfix to fine-tune another one.
+block (models without it train from scratch).
 """
 import os
 import glob
