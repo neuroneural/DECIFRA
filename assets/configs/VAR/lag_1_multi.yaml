@@ -1,7 +1,0 @@
-lag: 1
-linear_mode: "multi"
-loss:
-  prediction_delay: 0
-  prediction_depth: 1
-  forecast_weight: 1.0
-lr: 0.001
