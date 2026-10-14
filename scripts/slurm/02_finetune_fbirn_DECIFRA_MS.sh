@@ -32,6 +32,7 @@ echo "Fine-tuning DECIFRA_MS on FBIRN | fold=$fold"
 PYTHONPATH=. python scripts/02_finetuning.py \
     model=DECIFRA_MS/default \
     dataset=fbirn \
+    +dataset@test_sets.holdout=fbirn_holdout \
     fold=$fold \
     resume=true
 

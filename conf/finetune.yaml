@@ -15,6 +15,10 @@ fold: null              # null => run all outer folds; int k => run only fold k
 postfix: null           # optional suffix to distinguish experiments in one dir
 resume: false
 
+# extra test sets scored by every cell's best model next to its test fold:
+# name -> dataset config, e.g. +dataset@test_sets.holdout=fbirn_holdout
+test_sets: {}
+
 train:
   epochs: 200
   batch_size: 64
@@ -23,6 +27,7 @@ train:
   val_size: null        # null => 1/n_splits
   patience: null        # null => patience == epochs
   preserve_checkpoints: false
+  save_best: true       # keep best.pt per cell (~20 MB for DECIFRA)
   zscore: true
 
 hydra:

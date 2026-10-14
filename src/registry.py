@@ -7,6 +7,7 @@ All helpers take the full composed ``cfg`` and derive what they need from it:
   - ``cfg.model``        -> the selected model group (architecture + task blocks)
   - ``cfg.dataset``      -> the selected dataset group
   - ``cfg.data_info``    -> runtime sizes, filled in by the script after loading data
+(except ``resolve_finetuning_dataset``, which takes one dataset config).
 
 Models
 ------
@@ -186,9 +187,9 @@ def resolve_dataset(cfg):
     return data, extra_train_data
 
 
-def resolve_finetuning_dataset(cfg):
-    """Load labelled data for fine-tuning -> ``(data, labels)``."""
-    name = cfg.dataset.name
+def resolve_finetuning_dataset(ds_cfg):
+    """Load labelled data for fine-tuning -> ``(data, labels)`` from a dataset config."""
+    name = ds_cfg.name
     try:
         module = import_module(f"src.datasets.{name}")
     except ModuleNotFoundError as e:
@@ -200,7 +201,7 @@ def resolve_finetuning_dataset(cfg):
             f"'src.datasets.{name}' must define "
             f"'load_finetuning_data(ds_cfg) -> (data, labels)' for fine-tuning."
         ) from e
-    return loader(cfg.dataset)
+    return loader(ds_cfg)
 
 
 def pretrained_source(cfg):

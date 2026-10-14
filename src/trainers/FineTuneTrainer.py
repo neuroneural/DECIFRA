@@ -2,7 +2,9 @@
 Single-stage fine-tuning trainer: one train/val/test cycle for a (fold, repeat).
 
 Reuses the model's ``handle_batch`` (classification path), keeps the best-by-val
-weights in memory via EarlyStopping, and writes resumable checkpoints. The outer
+weights in memory via EarlyStopping, and writes resumable checkpoints. The best
+model is scored on every test set: ``test_loader`` is a loader (named "test") or
+a dict ``{name: loader}``, giving ``<name>_*`` columns and ``<name>_predictions.csv``. The outer
 nested-CV loop lives in scripts/02_finetuning.py; this trainer runs one cell.
 """
 import os
@@ -62,6 +64,7 @@ class FineTuneTrainer:
         resume: bool = False,
         preserve_checkpoints: bool = False,
         test_ids=None,
+        save_best: bool = True,
     ) -> None:
         self.cfg = cfg
         self.model_cfg = model_cfg
@@ -69,14 +72,15 @@ class FineTuneTrainer:
         self.optimizer = optimizer
         self.train_loader = train_loader
         self.val_loader = val_loader
-        self.test_loader = test_loader
+        self.test_loaders = test_loader if isinstance(test_loader, dict) else {"test": test_loader}
 
         self.epochs = epochs
         # `patience: null` in config => no early stop (train full, keep best-by-val)
         self.patience = patience if patience is not None else epochs
         self.resume = resume
         self.preserve_checkpoints = preserve_checkpoints
-        self.test_ids = test_ids  # dataset indices of test samples, in loader order
+        self.test_ids = test_ids  # dataset indices of the "test" set, in loader order
+        self.save_best = save_best
 
         if device is not None:
             self.device = torch.device(device)
@@ -119,8 +123,18 @@ class FineTuneTrainer:
             return agg, y_prob, y_true
 
     def is_complete(self):
-        """A finished run has best.pt written (also serves as the run marker)."""
-        return os.path.exists(os.path.join(self.SAVE_PATH, "best.pt"))
+        """A finished run has test_log.csv, written last (the run marker)."""
+        return os.path.exists(os.path.join(self.SAVE_PATH, "test_log.csv"))
+
+    def save_predictions(self, name, y_prob, y_true, ids=None):
+        """Per-subject predictions; loaders are unshuffled, so rows follow ids."""
+        preds = pd.DataFrame({"y_true": y_true.astype(int),
+                              "y_pred": y_prob.argmax(axis=1).astype(int)})
+        for c in range(y_prob.shape[1]):
+            preds[f"p_{c}"] = y_prob[:, c]
+        if ids is not None:
+            preds.insert(0, "sample_idx", np.asarray(ids))
+        preds.to_csv(os.path.join(self.SAVE_PATH, name), index=False)
 
     def run(self):
         ckpt_dir = os.path.join(self.SAVE_PATH, "checkpoints")
@@ -185,30 +199,28 @@ class FineTuneTrainer:
                 print(f"Early stop at epoch {epoch} (best @ {stopper.best_epoch})")
                 break
 
-        # Restore best-by-val weights, persist as best.pt (run-complete marker).
+        # Restore best-by-val weights (kept as best.pt unless save_best is off).
         if stopper.best_state is not None:
             self.model.load_state_dict(stopper.best_state)
-        torch.save(self.model.state_dict(), os.path.join(self.SAVE_PATH, "best.pt"))
+        if self.save_best:
+            torch.save(self.model.state_dict(), os.path.join(self.SAVE_PATH, "best.pt"))
         with open(os.path.join(self.SAVE_PATH, "best_epoch.txt"), "w") as f:
             f.write(f"{stopper.best_epoch}\n")
 
-        # Test with the best model.
-        test, y_prob, y_true = self._epoch(self.test_loader, train=False)
-        test_row = {f"test_{k}": v for k, v in test.items()}
+        # Score every test set with the best model.
+        test_row = {}
+        for name, loader in self.test_loaders.items():
+            scores, y_prob, y_true = self._epoch(loader, train=False)
+            test_row.update({f"{name}_{k}": v for k, v in scores.items()})
+            self.save_predictions(f"{name}_predictions.csv", y_prob, y_true,
+                                  self.test_ids if name == "test" else None)
+
+        # test_log.csv is written last: it marks the run complete
         test_row["best_epoch"] = stopper.best_epoch
         test_row["train_time_s"] = round(time.time() - start, 1)
         pd.DataFrame([test_row]).to_csv(
             os.path.join(self.SAVE_PATH, "test_log.csv"), index=False
         )
-
-        # per-subject test predictions (test loader is unshuffled)
-        preds = pd.DataFrame({"y_true": y_true.astype(int),
-                              "y_pred": y_prob.argmax(axis=1).astype(int)})
-        for c in range(y_prob.shape[1]):
-            preds[f"p_{c}"] = y_prob[:, c]
-        if self.test_ids is not None:
-            preds.insert(0, "sample_idx", np.asarray(self.test_ids))
-        preds.to_csv(os.path.join(self.SAVE_PATH, "test_predictions.csv"), index=False)
 
         if not self.preserve_checkpoints:
             for fn in ("last.pt", "optimizer_last.pt"):

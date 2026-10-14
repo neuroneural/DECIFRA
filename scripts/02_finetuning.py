@@ -10,7 +10,9 @@ Examples
          model.finetune.pretrained.load=false postfix=scratch         # from scratch
 
 The pretrained-weights source lives in the model config's finetune.pretrained
-block (models without it train from scratch).
+block (models without it train from scratch). Extra test sets in `test_sets`
+(e.g. +dataset@test_sets.holdout=fbirn_holdout) are scored by every cell's best
+model next to its test fold (holdout_* columns).
 """
 import os
 import glob
@@ -28,7 +30,8 @@ from src.registry import (resolve_finetuning_dataset, build_model, build_model_c
 from src.splits import nested_cv_splits
 from src.trainers.FineTuneTrainer import FineTuneTrainer
 
-METRICS = ["test_accuracy", "test_balanced_accuracy", "test_auc", "test_f1_macro"]
+METRICS = ["accuracy", "balanced_accuracy", "auc", "f1_macro"]   # reported per test set
+is_metric = lambda col: any(col.endswith("_" + m) for m in METRICS)
 
 
 def aggregate(run_root):
@@ -47,10 +50,9 @@ def aggregate(run_root):
     with open(os.path.join(run_root, "summary.txt"), "w") as f:
         head = f"# {len(df)} runs across {n_folds} folds"
         print("  " + head); f.write(head + "\n")
-        for m in METRICS:
-            if m in df:
-                line = f"{m}: {df[m].mean():.4f} +/- {df[m].std():.4f}"
-                print("  " + line); f.write(line + "\n")
+        for m in filter(is_metric, df.columns):
+            line = f"{m}: {df[m].mean():.4f} +/- {df[m].std():.4f}"
+            print("  " + line); f.write(line + "\n")
 
 
 @hydra.main(version_base=None, config_path="../conf", config_name="finetune")
@@ -85,7 +87,7 @@ def main(cfg):
                           else "mps" if torch.backends.mps.is_available() else "cpu")
 
     # --- DATA + LABELS ---
-    data, labels = resolve_finetuning_dataset(cfg)
+    data, labels = resolve_finetuning_dataset(cfg.dataset)
     data = np.asarray(data)
     labels = np.asarray(labels)
     n_classes = int(cfg.dataset.get("n_classes", len(np.unique(labels))))
@@ -93,6 +95,16 @@ def main(cfg):
         raise ValueError(f"labels must be in 0..{n_classes - 1}, got {np.unique(labels).tolist()}")
     print(f"Data {data.shape}, labels {labels.shape}, classes {n_classes}, "
           f"balance {np.bincount(labels).tolist()}")
+
+    # extra test sets (name -> dataset config), scored next to each test fold
+    extra = {}
+    for name, ds in (cfg.get("test_sets") or {}).items():
+        x, y = (np.asarray(a) for a in resolve_finetuning_dataset(ds))
+        if name == "test" or x.shape[2] != data.shape[2] or y.max() >= n_classes:
+            raise ValueError(f"test set '{name}' needs a name other than 'test', "
+                             f"{data.shape[2]} features and labels < {n_classes}")
+        extra[name] = (x, y)
+        print(f"Test set {name}: {x.shape}, balance {np.bincount(y).tolist()}")
 
     with open_dict(cfg):
         cfg.data_info = {"feature_size": int(data.shape[2]), "n_classes": n_classes}
@@ -122,9 +134,8 @@ def main(cfg):
     for fold, repeat, tr_idx, val_idx, te_idx in splits:
         run_dir = os.path.join(run_root, f"k{fold:02d}", f"r{repeat:02d}")
         os.makedirs(run_dir, exist_ok=True)
-        if cfg.resume and os.path.exists(os.path.join(run_dir, "best.pt")) \
-                and os.path.exists(os.path.join(run_dir, "test_log.csv")):
-            continue
+        if cfg.resume and os.path.exists(os.path.join(run_dir, "test_log.csv")):
+            continue   # test_log.csv is written last, when the cell is done
 
         model, model_cfg = build_model(cfg)   # constructs + loads weights by mode
         model.to(device)
@@ -134,23 +145,24 @@ def main(cfg):
                   f"({len(i['missing'])} missing e.g. clf)")
 
         optimizer = model.get_optimizer()
-        make = lambda idx, shuffle: type(model).prepare_dataloader(
-            data[idx], labels[idx], shuffle=shuffle, batch_size=batch_size, zscore=t.zscore)
+        make = lambda x, y, shuffle: type(model).prepare_dataloader(
+            x, y, shuffle=shuffle, batch_size=batch_size, zscore=t.zscore)
 
         trainer = FineTuneTrainer(
             cfg=cfg, model_cfg=model_cfg, model=model, optimizer=optimizer,
-            train_loader=make(tr_idx, True),
-            val_loader=make(val_idx, False),
-            test_loader=make(te_idx, False),
+            train_loader=make(data[tr_idx], labels[tr_idx], True),
+            val_loader=make(data[val_idx], labels[val_idx], False),
+            test_loader={"test": make(data[te_idx], labels[te_idx], False),
+                         **{name: make(x, y, False) for name, (x, y) in extra.items()}},
             epochs=int(t.epochs), patience=t.get("patience"),
             device=str(device), save_path=run_dir, resume=cfg.resume,
             preserve_checkpoints=bool(t.preserve_checkpoints),
+            save_best=bool(t.save_best),
             test_ids=te_idx,
         )
         row = trainer.run()
         print(f"  k{fold:02d} r{repeat:02d}: "
-              + " ".join(f"{m.replace('test_','')}={row.get(m, float('nan')):.3f}"
-                         for m in METRICS))
+              + " ".join(f"{k}={v:.3f}" for k, v in row.items() if is_metric(k)))
 
     # Aggregate over every completed cell present (handles fold-parallel runs).
     aggregate(run_root)

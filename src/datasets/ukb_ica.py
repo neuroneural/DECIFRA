@@ -46,15 +46,6 @@ def load_ica(variant: str = "hold"):
     return record, demo_df
 
 
-# --- back-compat aliases (used by analysis notebooks) ---
-def load_data_hold():
-    return load_ica("hold")
-
-
-def load_data_exp():
-    return load_ica("exp")
-
-
 def load_finetuning_data(ds_cfg=None):
     """
     Registry entrypoint for fine-tuning -> (data, labels). Uses a labelled raw
@@ -90,3 +81,13 @@ def load_pretraining_data(ds_cfg=None):
         f"Unknown UKB ICA variant '{variant}'. "
         f"Expected: hold, exp, 2205, half, plus_1000."
     )
+
+
+
+# --- back-compat aliases (used by analysis notebooks) ---
+def load_data_hold():
+    return load_ica("hold")
+
+
+def load_data_exp():
+    return load_ica("exp")
