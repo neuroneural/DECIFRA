@@ -206,14 +206,17 @@ def resolve_finetuning_dataset(ds_cfg):
 
 def pretrained_source(cfg):
     """
-    Weights fine-tuning starts from, ``{"run": <pretraining run dir>, "epoch": int}``,
-    read from ``cfg.model.finetune.pretrained`` ("best" resolved via best_epoch.txt);
-    None when that block is absent or has ``load: false`` (trained from scratch).
+    Weights fine-tuning starts from, ``{"run": <path>, "epoch": int | None}``, read from
+    ``cfg.model.finetune.pretrained``. ``run`` is a weights file (epoch None) or a
+    pretraining run dir ("best" epoch resolved via best_epoch.txt). None when that
+    block is absent or has ``load: false`` (trained from scratch).
     """
     pre = (cfg.model.get("finetune") or {}).get("pretrained") or {}
     if not pre.get("run") or not pre.get("load", True):
         return None
     run = os.path.normpath(str(pre.run))
+    if os.path.isfile(run):    # released weights, e.g. assets/weights/*.pth
+        return {"run": run, "epoch": None}
     epoch = pre.get("checkpoint", "best")
     if str(epoch) == "best":
         with open(os.path.join(run, "best_epoch.txt")) as f:
@@ -221,15 +224,16 @@ def pretrained_source(cfg):
     return {"run": run, "epoch": int(epoch)}
 
 
-def load_pretrained_state(model, run_dir, epoch, drop_keys=("clf",)):
+def load_pretrained_state(model, run, epoch, drop_keys=("clf",)):
     """
-    Load ``checkpoints/model_<epoch>.pt`` of a pretraining run into ``model``,
-    strict except for state-dict keys containing one of ``drop_keys`` (e.g. the
-    classifier head, which is trained from scratch).
+    Load pretrained weights into ``model``: the file ``run`` (epoch None) or
+    ``checkpoints/model_<epoch>.pt`` of the pretraining run dir ``run``. Strict except
+    for state-dict keys containing one of ``drop_keys`` (e.g. the classifier head,
+    which is trained from scratch).
     """
     import torch
 
-    path = os.path.join(run_dir, "checkpoints", f"model_{int(epoch)}.pt")
+    path = run if epoch is None else os.path.join(run, "checkpoints", f"model_{int(epoch)}.pt")
     state = torch.load(path, map_location="cpu")
     pruned = {k: v for k, v in state.items()
               if not any(bad in k for bad in drop_keys)}

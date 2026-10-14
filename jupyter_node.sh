@@ -12,7 +12,7 @@
 #SBATCH -A psy53c17                 # elpis project name, can be different for you, check you allocations at https://elpis.rs.gsu.edu/
 
 PORT="4466"
-TOKEN="VGH9W56uz3PUlilaTmobEvQoxImbYsL6DppFyCzwuCI"
+TOKEN="${TOKEN:-$(openssl rand -hex 32)}"
 
 # assuming you created the python env following the README; change ml4fmri to your env name if you used a different one
 /data/users2/ppopov1/miniconda/bin/conda run -n pile --no-capture-output jupyter-lab \

@@ -6,13 +6,12 @@ This repo contains implementation of DECIFRA model published in IEEE TMI (https:
 We publish the model weights pretrained on the UKB dataset preprocessed with Neuromark 1.0 ICA pipeline that defines 53 regions.
 To test the model on a different data, you need to run pretraining experiments first.
 We provide the example scripts necessary for pretraining on the new data. 
-To add your dataset to this repo, please check the READMEs in `conf/dataset` and `src/datasets`.
-#todo; add these readmes to these folders. i think to keep it simple let's exemplify the instructions using dummy dataset.
+To add your dataset to this repo, please check the READMEs in [`conf/dataset`](conf/dataset/README.md) and [`src/datasets`](src/datasets/README.md).
 
 ## Installation
 ```bash
 git clone https://github.com/neuroneural/DECIFRA.git && cd DECIFRA
-pip install -r requirements.txt   # TODO: get the version numbers from conda env pile and insert them there
+pip install -r requirements.txt   # tested with Python 3.12
 ```
 
 To see if it works, run this from the repo root:
@@ -21,28 +20,34 @@ PYTHONPATH=. python scripts/01_pretraining.py model=DECIFRA dataset=dummy train.
 ```
 
 ## Pretraining
-Example: #todo add reference to the pretrain config for more details on params
+Example:
 ```bash
-PYTHONPATH=. python scripts/01_pretraining.py model=DECIFRA_MS/default dataset=ukb_ica idx=0
+PYTHONPATH=. python scripts/01_pretraining.py model=DECIFRA_MS/default dataset=ukb idx=0
 ```
+Parameters and defaults are stored in `conf/pretrain.yaml` and `conf/model/<model>.yaml`; 
+override any of them on the command line, e.g. `train.epochs=100`)
+
 - Models: `DECIFRA`, `DECIFRA_MS/default`; ablations in `conf/model/DECIFRA_MS/`.
 - Logs: `assets/logs/1_pretrain-<dataset>-<model>/<idx>/` (checkpoints, `best_epoch.txt`, `train_logs.csv`).
 - SLURM: `scripts/slurm/01_pretrain_*.sh`.
+- Other data: `dataset=<config>` selects `conf/dataset/<config>.yaml` (see [`conf/dataset`](conf/dataset/README.md)).
+- `idx` (default 0) names the run folder. Sweep through multiple values to run multiple experiments in parallel.
 
-#todo; explain what to change to use another dataset for pretraining, and how idx works to run multiple experiments (and what happens if we don't set it)
+Parameters and defaults are stored in `conf/finetune.yaml` and the `finetune` block of `conf/model/<model>.yaml`).
 
 ## Fine-tuning
-Example:  #todo add reference to the finetune config for more details on params
+Example:
 ```bash
 PYTHONPATH=. python scripts/02_finetuning.py model=DECIFRA dataset=fbirn +dataset@test_sets.holdout=fbirn_holdout
 ```
-- Pretrained weights: `finetune.pretrained` in `conf/model/<model>.yaml` (`run`, `checkpoint`; `load: false` trains from scratch). TODO: released weights. assets/weights let's put them here, copy them from logs and name like model_dataset_idx.pth
+- Pretrained weights: `finetune.pretrained.run` in `conf/model/<model>.yaml`, by default the released UKB weights `assets/weights/<model>_<dataset>_<idx>.pth`. It also takes a pretraining run folder (`checkpoint: best` or an epoch); `load: false` trains from scratch.
 - CV setup (`train.n_splits` × `train.n_repeats`); each cell's best-by-validation model is scored on its test fold and on every `test_sets` entry.
 - Logs: `assets/logs/2_finetune-<dataset>-<model>/k*/r*/`, plus `fold_results.csv` and `summary.txt`; `resume=true` skips finished cells.
 - SLURM: `scripts/slurm/02_finetune_*.sh`.
 
 ## Analysis
 Use the notebooks below to analyze the results of pretraining or finetuning.
+
 | Notebook (`scripts/notebooks/`) | Content |
 |---|---|
 | `01_pretraining_analysis` | best pretraining run, losses, matrices, attractor analysis |
@@ -73,13 +78,3 @@ assets/    data/, logs/, analysis/
 
 ## License
 MIT, see [LICENSE](LICENSE).
-
-## Using your own data 
-#let's move this info to the READMEs I mention above, no need for it here
-- Arrays: `data` [subjects, time, regions], `labels` [subjects] (integers, fine-tuning only).
-- `src/datasets/<name>.py` with `load_pretraining_data(ds_cfg) -> data` and/or
-  `load_finetuning_data(ds_cfg) -> (data, labels)` (see `dummy.py`, `fbirn.py`).
-- `conf/dataset/<name>.yaml` with `name: <name>`, `n_classes` (fine-tuning) and any keys your loader reads.
-- Region names and domains for plots: `assets/data/ICN_coordinates_refined.csv` (Neuromark 53); other parcellations are shown by index.
-
-

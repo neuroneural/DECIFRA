@@ -4,8 +4,8 @@ Pretraining entrypoint (Hydra).
 Examples
 --------
   python scripts/01_pretraining.py model=DECIFRA_MS/default dataset=ukb idx=0
-  python scripts/01_pretraining.py model=VAR/lag_5_full dataset=ukb idx=3 train.epochs=300
-  python scripts/01_pretraining.py model=DECIFRA_sens/sp_heavy dataset=ukb idx=0 resume=true
+  python scripts/01_pretraining.py model=DECIFRA dataset=ukb idx=3 train.epochs=300
+  python scripts/01_pretraining.py model=DECIFRA_MS/default dataset=ukb idx=0 resume=true
 
 Log dir: assets/logs/1_pretrain-<dataset>-<model_choice>/<idx>/  (model_choice with
 '/' replaced by '-', e.g. DECIFRA_MS-default), plus an optional `postfix`.

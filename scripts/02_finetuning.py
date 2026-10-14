@@ -109,10 +109,12 @@ def main(cfg):
     with open_dict(cfg):
         cfg.data_info = {"feature_size": int(data.shape[2]), "n_classes": n_classes}
 
-    # Safety check: dataset features must match the pretrained checkpoint.
+    # Safety check: dataset features must match the pretrained checkpoint
+    # (run dirs only; a weights file with other sizes fails on load).
     model_cfg = build_model_cfg(cfg)
-    if source:
-        pre_cfg = OmegaConf.load(os.path.join(source["run"], "model_config.yaml"))
+    pre_cfg_path = os.path.join(source["run"], "model_config.yaml") if source else ""
+    if os.path.isfile(pre_cfg_path):
+        pre_cfg = OmegaConf.load(pre_cfg_path)
         if int(pre_cfg.input_size) != int(model_cfg.input_size):
             raise ValueError(
                 f"feature_size mismatch: dataset has {model_cfg.input_size} features "
@@ -141,8 +143,8 @@ def main(cfg):
         model.to(device)
         if fold == splits[0][0] and repeat == 0 and hasattr(model, "_pretrained_info"):
             i = model._pretrained_info
-            print(f"  loaded {i['loaded']} tensors from epoch {i['epoch']} "
-                  f"({len(i['missing'])} missing e.g. clf)")
+            where = f"epoch {i['epoch']}" if i["epoch"] is not None else os.path.basename(model_cfg.pretrained.run)
+            print(f"  loaded {i['loaded']} tensors from {where} ({len(i['missing'])} missing e.g. clf)")
 
         optimizer = model.get_optimizer()
         make = lambda x, y, shuffle: type(model).prepare_dataloader(
