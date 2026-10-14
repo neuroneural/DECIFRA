@@ -8,6 +8,7 @@ To test the model on a different data, you need to run pretraining experiments f
 We provide the example scripts necessary for pretraining on the new data. 
 To add your dataset to this repo, please check the READMEs in [`conf/dataset`](conf/dataset/README.md) and [`src/datasets`](src/datasets/README.md).
 
+For contacts: [paavali.popov@gmail.com](mailto:paavali.popov@gmail.com)
 ## Installation
 ```bash
 git clone https://github.com/neuroneural/DECIFRA.git && cd DECIFRA
@@ -22,10 +23,10 @@ PYTHONPATH=. python scripts/01_pretraining.py model=DECIFRA dataset=dummy train.
 ## Pretraining
 Example:
 ```bash
-PYTHONPATH=. python scripts/01_pretraining.py model=DECIFRA_MS/default dataset=ukb idx=0
+PYTHONPATH=. python scripts/01_pretraining.py model=DECIFRA dataset=ukb idx=0
 ```
 Parameters and defaults are stored in `conf/pretrain.yaml` and `conf/model/<model>.yaml`; 
-override any of them on the command line, e.g. `train.epochs=100`)
+override any of them on the command line, e.g. `train.epochs=100`.
 
 - Models: `DECIFRA`, `DECIFRA_MS/default`; ablations in `conf/model/DECIFRA_MS/`.
 - Logs: `assets/logs/1_pretrain-<dataset>-<model>/<idx>/` (checkpoints, `best_epoch.txt`, `train_logs.csv`).
@@ -33,13 +34,13 @@ override any of them on the command line, e.g. `train.epochs=100`)
 - Other data: `dataset=<config>` selects `conf/dataset/<config>.yaml` (see [`conf/dataset`](conf/dataset/README.md)).
 - `idx` (default 0) names the run folder. Sweep through multiple values to run multiple experiments in parallel.
 
-Parameters and defaults are stored in `conf/finetune.yaml` and the `finetune` block of `conf/model/<model>.yaml`).
-
 ## Fine-tuning
 Example:
 ```bash
 PYTHONPATH=. python scripts/02_finetuning.py model=DECIFRA dataset=fbirn +dataset@test_sets.holdout=fbirn_holdout
 ```
+Parameters and defaults are stored in `conf/finetune.yaml` and the `finetune` block of `conf/model/<model>.yaml`.
+
 - Pretrained weights: `finetune.pretrained.run` in `conf/model/<model>.yaml`, by default the released UKB weights `assets/weights/<model>_<dataset>_<idx>.pth`. It also takes a pretraining run folder (`checkpoint: best` or an epoch); `load: false` trains from scratch.
 - CV setup (`train.n_splits` × `train.n_repeats`); each cell's best-by-validation model is scored on its test fold and on every `test_sets` entry.
 - Logs: `assets/logs/2_finetune-<dataset>-<model>/k*/r*/`, plus `fold_results.csv` and `summary.txt`; `resume=true` skips finished cells.
