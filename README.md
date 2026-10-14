@@ -1,7 +1,6 @@
 # DECIFRA
 
-This repo contains implementation of DECIFRA model published in IEEE TMI (https://ieeexplore.ieee.org/document/11701636).
-(https://doi.org/10.1109/TMI.2026.3735891).
+This repo contains implementation of DECIFRA model published in [IEEE TMI](https://ieeexplore.ieee.org/document/11701636).
 
 We publish the model weights pretrained on the UKB dataset preprocessed with Neuromark 1.0 ICA pipeline that defines 53 regions.
 To test the model on a different data, you need to run pretraining experiments first.
