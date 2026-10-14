@@ -1,0 +1,37 @@
+# Root config for scripts/02_finetuning.py
+# Usage:
+#   python scripts/02_finetuning.py model=DECIFRA dataset=fbirn fold=0
+# The pretrained-weights source lives in the model config's `finetune.pretrained`
+# block (per model)
+defaults:
+  - model: ???
+  - dataset: ???
+  - _self_
+
+mode: finetune          # selects the model's 'finetune' delta (see src.registry)
+
+fold: null              # null => run all outer folds; int k => run only fold k
+                        # (lets a slurm array parallelise folds into one run dir)
+postfix: null           # optional suffix to distinguish experiments in one dir
+resume: false
+
+# extra test sets scored by every cell's best model next to its test fold:
+# name -> dataset config, e.g. +dataset@test_sets.holdout=fbirn_holdout
+test_sets: {}
+
+train:
+  epochs: 200
+  batch_size: 64
+  n_splits: 5           # outer StratifiedKFold (held-out test per fold)
+  n_repeats: 10         # inner StratifiedShuffleSplit (train/val) per fold
+  val_size: null        # null => 1/n_splits
+  patience: null        # null => patience == epochs
+  preserve_checkpoints: false
+  save_best: true       # keep best.pt per cell (~20 MB for DECIFRA)
+  zscore: true
+
+hydra:
+  run:
+    dir: ./assets/utility_logs
+  job:
+    chdir: false

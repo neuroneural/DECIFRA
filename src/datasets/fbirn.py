@@ -1,51 +1,87 @@
-# pylint: disable=too-many-function-args, invalid-name
 """ FBIRN ICA dataset loading script"""
-import h5py
+
 import numpy as np
 import pandas as pd
-
-from omegaconf import DictConfig
-
-from src.settings import DATA_ROOT
-
+from src.settings import ASSETS_ROOT, DATA_ROOT
 
 def load_data(
-    cfg: DictConfig,
-    dataset_path: str = DATA_ROOT.joinpath("fbirn/FBIRN_AllData.h5"),
-    indices_path: str = DATA_ROOT.joinpath("ICA_correct_order.csv"),
-    # indices_path: str = DATA_ROOT.joinpath("fbirn/correct_indices_GSP.csv"),
-    labels_path: str = DATA_ROOT.joinpath("fbirn/labels_FBIRN_new.csv"),
-):
+    file_path: str = f"{DATA_ROOT}/fbirn_ica/fbirn_data.npz",
+    demo_path: str = f"{DATA_ROOT}/fbirn_ica/demographics_legend.csv"
+    ):
     """
-    Return FBIRN data
+    Loads FBIRN data saved in npz archive.
 
-    Output:
-    features with shape [n_samples, time_length, feature_size],
-    labels
+    Args:
+        file_path (str): The path to the .npz file.
+        demo_path (str): The path to the demographics legend CSV file.
+
+    Returns:
+        A dictionary containing the loaded arrays:
+            - data: The main data array of shape (311, 140, 53) (samples, time points, features).
+            - diags: Diagnosis labels.
+            - sexes: Sex labels.    
+            - ages: Age values.
+            - age_bins: Age bin labels.
+        A pandas DataFrame containing the demographics legend.
     """
+    
+    npz = np.load(file_path, allow_pickle=True)
+    data = npz["data"]
+    diags = npz["diags"]
+    sexes = npz["sexes"]
+    ages = npz["ages"]
+    age_bins = npz["age_bins"]
 
-    # get data
-    hf = h5py.File(dataset_path, "r")
-    data = hf.get("FBIRN_dataset")
-    data = np.array(data)
-    # data.shape = [311, 14000]
+    demo_df = pd.read_csv(demo_path)
 
-    # reshape data
-    data = data.reshape(data.shape[0], 100, -1)
-    # data.shape = [311, 100, 140]
+    return {
+        "data": data,
+        "diags": diags,
+        "sexes": sexes,
+        "ages": ages,
+        "age_bins": age_bins
+    }, demo_df
 
-    if cfg.dataset.filter_indices:
-        # get correct indices/components
-        indices = pd.read_csv(indices_path, header=None)
-        idx = indices[0].values - 1
-        data = data[:, idx, :]
-        # data.shape = [311, 53, 140]
+def load_finetuning_data(ds_cfg=None):
+    """
+    Registry entrypoint for fine-tuning -> (data, labels).
+    ds_cfg fields: `split` (full|main|holdout, default full), `label`
+    (diags|sexes|age_bins, default diags).
+    """
+    split = str(ds_cfg.get("split", "full")) if ds_cfg is not None else "full"
+    label = str(ds_cfg.get("label", "diags")) if ds_cfg is not None else "diags"
+    loaders = {"full": load_data, "main": load_data_main, "holdout": load_data_hold}
+    if split not in loaders:
+        raise ValueError(f"Unknown fbirn split '{split}'. Expected: {list(loaders)}.")
+    record, _ = loaders[split]()
+    return record["data"], record[label]
 
-    # get labels
-    labels = pd.read_csv(labels_path, header=None)
-    labels = labels.values.flatten().astype("int") - 1
 
-    data = np.swapaxes(data, 1, 2)
-    # data.shape = [n_samples, time_length, feature_size]
+def load_data_hold():
+    data, demo = load_data() 
+    holdout_indices = pd.read_csv(f"{DATA_ROOT}/fbirn_ica/idx_holdout", header=None).values[:, 0]
 
-    return data, labels
+    new_dict = {}
+    for key, value in data.items():
+        new_dict[key] = value[holdout_indices]
+    return new_dict, demo
+
+def load_data_main():
+    data, demo = load_data() 
+    main_indices = pd.read_csv(f"{DATA_ROOT}/fbirn_ica/idx_main", header=None).values[:, 0]
+
+    new_dict = {}
+    for key, value in data.items():
+        new_dict[key] = value[main_indices]
+    return new_dict, demo
+
+if __name__ == "__main__":
+    # Example of how to use the function to load the data
+    data_dict, demo_df = load_data()
+
+    # Print the keys of the loaded data to verify
+    print("Arrays loaded from the file:", data_dict.keys())
+    print("Data shape:", data_dict["data"].shape)
+    print("Others shape:", data_dict["diags"].shape, data_dict["sexes"].shape, data_dict["ages"].shape, data_dict["age_bins"].shape)
+    print("Demographics legend DataFrame:")
+    print(demo_df)

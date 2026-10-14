@@ -1,0 +1,5 @@
+# FBIRN holdout subjects; usually an extra test set: +dataset@test_sets.holdout=fbirn_holdout
+name: fbirn
+label: diags          # diags | sexes | age_bins
+split: holdout        # full | main | holdout
+n_classes: 2

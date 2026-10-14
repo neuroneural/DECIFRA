@@ -1,12 +1,13 @@
-apto
-h5py
-path
-wandb
-tqdm
-pylint
-captum
-matplotlib==3.6.3
-ipykernel
-hydra-core
-seaborn
-statannot
+# tested with Python 3.12
+# core: training + configs
+numpy==2.5.3
+pandas==2.3.3
+torch==2.10.0
+scikit-learn==1.7.2
+omegaconf==2.3.0
+hydra-core==1.3.3
+
+# analysis notebooks (scripts/notebooks)
+matplotlib==3.10.8
+scipy==1.17.1
+jupyterlab==4.5.8

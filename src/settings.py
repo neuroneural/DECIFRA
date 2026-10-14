@@ -1,19 +1,26 @@
-"""Constants of the project"""
-from datetime import datetime
+"""Constants used the project. Mostly paths to data, logs and so on"""
+
+import time
 import os
 import platform
 
-import path
+PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
+ASSETS_ROOT = os.path.join(PROJECT_ROOT, "assets")
+LOGS_ROOT = os.path.join(ASSETS_ROOT, "logs")
 
-PROJECT_ROOT = path.Path(os.path.dirname(__file__)).joinpath("..").abspath()
-ASSETS_ROOT = PROJECT_ROOT.joinpath("assets")
-WEIGHTS_ROOT = ASSETS_ROOT.joinpath("model_weights")
-LOGS_ROOT = ASSETS_ROOT.joinpath("logs")
-
-UTCNOW = datetime.utcnow().strftime("%y%m%d.%H%M%S")
+UTCNOW = time.strftime("%m%d-%H%M%S", time.gmtime())
 
 node = platform.node()
 if "arctrd" in node:
-    DATA_ROOT = path.Path("/data/users2/ppopov1/datasets")
+    DATA_ROOT = "/data/users2/ppopov1/datasets"
+elif "URSMWJ" in node:
+    DATA_ROOT = "/Users/ppopov1/_datasets"
 else:
-    DATA_ROOT = ASSETS_ROOT.joinpath("data")
+    DATA_ROOT = os.path.join(ASSETS_ROOT, "data")
+
+if __name__ == "__main__":
+    print("PROJECT_ROOT: ", PROJECT_ROOT)
+    print("ASSETS_ROOT:  ", ASSETS_ROOT)
+    print("LOGS_ROOT:    ", LOGS_ROOT)
+    print("DATA_ROOT:    ", DATA_ROOT)
+    print("UTCNOW:       ", UTCNOW)

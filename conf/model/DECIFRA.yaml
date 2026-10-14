@@ -1,0 +1,42 @@
+# Vanilla DECIFRA family. All variants share this config and live in
+# src/models/DECIFRA.py; `variant` selects the BTP/class:
+#   default          -> DECIFRA            (gated, mixing)
+#   noGate           -> DECIFRA_noGate
+#   IMix             -> DECIFRA_IMix        (identity mixing)
+#   IMix_Res         -> DECIFRA_IMix_Res
+#   noGate_IMix_Res  -> DECIFRA_noGate_IMix_Res
+#   Gated_IMix_Res   -> DECIFRA_Gated_IMix_Res
+# Override on the CLI, e.g.:  model=DECIFRA model.variant=IMix
+module: DECIFRA
+variant: default
+
+single_embedder: true
+single_GRU: true
+rnn:
+  input_embedding_size: 16
+  hidden_size: 32
+btp:
+  hidden_dim: 32
+single_predictor: true
+lr: 0.001
+
+pretrain:
+  pretraining: true
+  loss:
+    threshold: 0.01
+    sp_weight: 1.0
+    forecast_weight: 1.0
+    prediction_delay: 0
+    prediction_depth: 1
+    weighted_change: false
+
+finetune:                # delta applied on top of base for mode=finetune
+  lr: 3.0e-4
+  loss:
+    sp_weight: 0.02        # aux losses down-weighted vs the CE objective
+    forecast_weight: 0.02
+  pretrained:              # weights to initialise from (read by 02_finetuning.py)
+    run: assets/weights/DECIFRA_ukb_19.pth   # weights file, or a pretraining run dir
+    checkpoint: best       # run dirs only: 'best' (via best_epoch.txt) or an integer epoch
+    load: true             # false => train the classifier from scratch
+    drop_keys: [clf]       # state_dict key substrings skipped on load

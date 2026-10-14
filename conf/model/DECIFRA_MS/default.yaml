@@ -1,0 +1,38 @@
+# Migrated from assets/configs/DECIFRA_MS/default.yaml
+model_name: DECIFRA_MS
+module: DECIFRA_MS
+variant: default        # default -> DECIFRA_MS; rand -> DECIFRA_MS_rand
+n_training_stages: 2
+eps_stage_ratios:
+- 0.3
+- 0.7
+transition_target_weight: 0.2
+single_embedder: true
+single_GRU: true
+rnn:
+  input_embedding_size: 16
+  hidden_size: 32
+btp:
+  hidden_dim: 32
+single_predictor: true
+lr: 0.001
+pretrain:
+  pretraining: true
+  loss:
+    threshold: 0.01
+    sp_weight: 1.0
+    forecast_weight: 1.0
+    prediction_delay: 0
+    prediction_depth: 1
+    weighted_change: false
+
+finetune:                # delta applied on top of base for mode=finetune
+  lr: 3.0e-4
+  loss:
+    sp_weight: 0.02        # aux losses down-weighted vs the CE objective
+    forecast_weight: 0.02
+  pretrained:
+    run: assets/weights/DECIFRA_MS_ukb_14.pth   # weights file, or a pretraining run dir
+    checkpoint: best
+    load: true
+    drop_keys: [clf]
