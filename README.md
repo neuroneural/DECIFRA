@@ -65,7 +65,7 @@ assets/    data/, logs/, analysis/
 ## Citation
 ```bibtex
 @article{decifra_early_access,
-  author={Popov, Pavel and Morasso, Cristian and Dolci, Giorgio and Galazzo, Ilaria Boscolo and Pearlson, Godfrey and Danks, David and Calhoun, Vince and Menegaz, Gloria and Plis, Sergey},
+  author={Popov, Pavel and Morasso, Cristian and Dolci, Giorgio and Boscolo Galazzo, Ilaria and Pearlson, Godfrey and Danks, David and Calhoun, Vince and Menegaz, Gloria and Plis, Sergey},
   journal={IEEE Transactions on Medical Imaging}, 
   title={Message in a Bottleneck: Interpretable Deep Learning for Dynamic Effective Brain Connectivity}, 
   year={2026},
